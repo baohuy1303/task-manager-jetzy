@@ -11,6 +11,17 @@ class TaskController {
     }
   }
 
+  async getTaskById(req, res, next) {
+    try {
+      const { id } = req.params;
+      const task = await taskService.getTaskById(req.user, id);
+      res.json({ success: true, data: task });
+    } catch (error) {
+      if (error.message === 'Task not found') return res.status(404).json({ success: false, error: error.message });
+      next(error);
+    }
+  }
+
   async getTasks(req, res, next) {
     try {
       const { project_id, status, priority, assigned_to, due_before, due_after, limit, cursor } = req.query;

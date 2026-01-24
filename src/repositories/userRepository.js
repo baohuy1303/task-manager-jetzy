@@ -72,14 +72,20 @@ class UserRepository {
   }
 
   async updateOrganization(id, organization_id) {
-    const text = 'UPDATE users SET organization_id = $2 WHERE id = $1 RETURNING *';
+    const text = 'UPDATE users SET organization_id = $2 WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at';
     const { rows } = await query(text, [id, organization_id]);
     return rows[0];
   }
 
   async updateProject(id, project_id) {
-    const text = 'UPDATE users SET project_id = $2 WHERE id = $1 RETURNING *';
+    const text = 'UPDATE users SET project_id = $2 WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at';
     const { rows } = await query(text, [id, project_id]);
+    return rows[0];
+  }
+
+  async deactivate(id) {
+    const text = 'UPDATE users SET is_active = false WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at';
+    const { rows } = await query(text, [id]);
     return rows[0];
   }
 }

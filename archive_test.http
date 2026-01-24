@@ -1,0 +1,315 @@
+### Project Archiving (Read-Only) Test Suite
+@baseUrl = http://localhost:3000/api/v1
+@password = password123
+
+### 1. Register Admin (Setup)
+# @name adminRegister
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+    "name": "Archive Admin Test",
+    "email": "archive_admin_test@test.com",
+    "password": "{{password}}",
+    "role": "admin"
+}
+
+###
+@adminId = {{adminRegister.response.body.data.id}}
+
+### 2. Login
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "archive_admin_test@test.com",
+    "password": "{{password}}"
+}
+
+###
+@adminToken = {{adminLogin.response.body.data.token}}
+
+### 3. Create Org (Auto-links Admin)
+# @name createOrg
+POST {{baseUrl}}/organizations
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "name": "Archiving Org Test"
+}
+
+### 
+@orgId = {{createOrg.response.body.data.id}}
+
+### 4. Re-Login to refresh Token (Now with Org ID)
+# @name adminLoginRefresh
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "archive_admin_test@test.com",
+    "password": "{{password}}"
+}
+
+###
+@adminToken = {{adminLoginRefresh.response.body.data.token}}
+@adminId = {{adminLoginRefresh.response.body.data.user.id}}
+
+### 5. Create Project (Active)
+# @name createProject
+POST {{baseUrl}}/projects
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "name": "Project to Archive Test",
+    "status": "active"
+}
+
+###
+@projectId = {{createProject.response.body.data.id}}
+
+### 6. Create Task (Should Succeed)
+# @name createTask
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "title": "Task 1",
+    "assigned_to": "{{adminId}}"
+}
+
+###
+@taskId = {{createTask.response.body.data.id}}
+
+### 6. ARCHIVE PROJECT
+PATCH {{baseUrl}}/projects/{{projectId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "status": "archived"
+}
+
+### 7. VERIFY: Create Task (Should FAIL)
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "title": "Task 2 (Should Fail)"
+}
+
+### 8. VERIFY: Update Task Status (Should FAIL)
+PATCH {{baseUrl}}/tasks/{{taskId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "status": "in_progress"
+}
+
+### 9. VERIFY: Update Task Details (Should FAIL)
+PATCH {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "title": "Updated Title (Should Fail)"
+}
+
+### 10. VERIFY: Modify Project Details (Should FAIL)
+PATCH {{baseUrl}}/projects/{{projectId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "name": "Renaming Archived Project (Should Fail)"
+}
+
+### 11. VERIFY: Un-Archive Project (Should SUCCEED)
+PATCH {{baseUrl}}/projects/{{projectId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "status": "active"
+}
+
+### 12. VERIFY: Create Task Again (Should SUCCEED)
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "title": "Task 3 (Should Succeed)"
+}
+
+### ------------------------------------------------------------
+### FLOW: Member Scoped Archiving Test
+### ------------------------------------------------------------
+
+### 1. Register New Admin
+# @name admin2Register
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+    "name": "Admin Flow TestMember",
+    "email": "admin_flow_member@test.com",
+    "password": "{{password}}",
+    "role": "admin"
+}
+
+###
+@admin2Id = {{admin2Register.response.body.data.id}}
+
+### 2. Login & Create Org
+# @name admin2Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin_flow_member@test.com",
+    "password": "{{password}}"
+}
+
+###
+@admin2TokenInit = {{admin2Login.response.body.data.token}}
+
+# @name createOrg2
+POST {{baseUrl}}/organizations
+Authorization: Bearer {{admin2TokenInit}}
+Content-Type: application/json
+
+{
+    "name": "Flow Org Member"
+}
+
+###
+@org2Id = {{createOrg2.response.body.data.id}}
+
+### 3. Login Refresh
+# @name admin2LoginRefresh
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin_flow_member@test.com",
+    "password": "{{password}}"
+}
+
+###
+@admin2Token = {{admin2LoginRefresh.response.body.data.token}}
+
+### 4. Create Project
+# @name createProject2
+POST {{baseUrl}}/projects
+Authorization: Bearer {{admin2Token}}
+Content-Type: application/json
+
+{
+    "name": "Flow Project Member",
+    "status": "active"
+}
+
+###
+@project2Id = {{createProject2.response.body.data.id}}
+
+### 5. Create Member
+# @name member2Setup
+POST {{baseUrl}}/users
+Authorization: Bearer {{admin2Token}}
+Content-Type: application/json
+
+{
+    "organization_id": "{{org2Id}}",
+    "name": "Flow Member",
+    "email": "member_flow_member@test.com",
+    "password": "{{password}}",
+    "role": "member"
+}
+
+###
+@member2Id = {{member2Setup.response.body.data.id}}
+
+### 6. Assign Member to Project
+PATCH {{baseUrl}}/users/{{member2Id}}/project
+Authorization: Bearer {{admin2Token}}
+Content-Type: application/json
+
+{
+    "project_id": "{{project2Id}}"
+}
+
+### 7. Admin Creates Task for Member
+# @name task2Setup
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{admin2Token}}
+Content-Type: application/json
+
+{
+    "project_id": "{{project2Id}}",
+    "title": "Task for Member",
+    "assigned_to": "{{member2Id}}",
+    "priority": "medium"
+}
+
+###
+@task2Id = {{task2Setup.response.body.data.id}}
+
+### 8. Member Login
+# @name member2Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "member_flow_member@test.com",
+    "password": "{{password}}"
+}
+
+###
+@member2Token = {{member2Login.response.body.data.token}}
+
+### 9. Member Changes Task Status (Should Succeed - Active Project)
+PATCH {{baseUrl}}/tasks/{{task2Id}}/status
+Authorization: Bearer {{member2Token}}
+Content-Type: application/json
+
+{
+    "status": "in_progress"
+}
+
+### 10. Admin Archives Project
+PATCH {{baseUrl}}/projects/{{project2Id}}
+Authorization: Bearer {{admin2Token}}
+Content-Type: application/json
+
+{
+    "status": "archived"
+}
+
+### 11. Member Tries to Change Status (Should FAIL - Archived Project)
+PATCH {{baseUrl}}/tasks/{{task2Id}}/status
+Authorization: Bearer {{member2Token}}
+Content-Type: application/json
+
+{
+    "status": "review"
+}
+
+### 12. Member Tries to Update Description (Should FAIL - Archived Project)
+PATCH {{baseUrl}}/tasks/{{task2Id}}
+Authorization: Bearer {{member2Token}}
+Content-Type: application/json
+
+{
+    "description": "Attempting to edit an archived task"
+}
+

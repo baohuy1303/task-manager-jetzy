@@ -114,6 +114,29 @@ class TaskRepository {
     return rows[0];
   }
 
+  async reassignTasksToProjectCreator(details) {
+      if (details) {
+          // Case 1: Reassign tasks for a deactivating user
+          if (details.old_assigned_to) {
+                // This magic query updates all tasks assigned to the user
+                // It sets the new assigned_to to the CREATOR of the project the task belongs to.
+                // It does a join to find that creator.
+                const text = `
+                    UPDATE tasks t
+                    SET assigned_to = p.created_by
+                    FROM projects p
+                    WHERE t.project_id = p.id
+                    AND t.assigned_to = $1
+                    AND t.is_deleted = false
+                    RETURNING t.id, t.title, t.assigned_to
+                `;
+                const { rows } = await query(text, [details.old_assigned_to]);
+                return rows;
+          }
+      }
+      return [];
+  }
+
   async update(id, updates) {
       // Dynamic update query builder
       const keys = Object.keys(updates);

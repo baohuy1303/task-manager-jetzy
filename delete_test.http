@@ -1,0 +1,125 @@
+### User Deactivation & Task Reassignment Test Suite
+@baseUrl = http://localhost:3000/api/v1
+@password = password123
+@uniqueId = {{$timestamp}}
+
+### 1. Register Admin (Org-less initially)
+# @name adminRegister
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+    "name": "Admin testDelete",
+    "email": "admin_testDelete@test.com",
+    "password": "{{password}}",
+    "role": "admin"
+}
+
+### Capture Admin ID (Can't rely on token yet, need to login)
+@adminId = {{adminRegister.response.body.data.id}}
+
+### 2. Login Admin
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin_testDelete@test.com",
+    "password": "{{password}}"
+}
+
+### Capture Admin Token
+@adminToken = {{adminLogin.response.body.data.token}}
+
+### 3. Create Organization (Auto-links Admin)
+# @name createOrg
+POST {{baseUrl}}/organizations
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "name": "Deactivation Org testDelete"
+}
+
+### Capture Org ID
+@orgId = {{createOrg.response.body.data.id}}
+
+### 4. Re-Login to refresh Token (Now with Org ID)
+# @name adminLoginRefresh
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin_testDelete@test.com",
+    "password": "{{password}}"
+}
+
+### Capture Admin Token
+@adminToken = {{adminLoginRefresh.response.body.data.token}}
+
+### 5. Create Member to be Deactivated
+# @name memberSetup
+POST {{baseUrl}}/users
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "organization_id": "{{orgId}}",
+    "name": "Member testDelete",
+    "email": "member_testDelete@test.com",
+    "password": "{{password}}",
+    "role": "member"
+}
+
+### Capture Member Data
+@memberId = {{memberSetup.response.body.data.id}}
+
+### 6. Create Project (Owned by Admin)
+# @name projectSetup
+POST {{baseUrl}}/projects
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "name": "Deactivation Project testDelete",
+    "description": "Tasks should return here",
+    "status": "active"
+}
+
+### Capture Project Data
+@projectId = {{projectSetup.response.body.data.id}}
+
+### 7. Create Task (Assigned to Member)
+# @name taskSetup
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "title": "Task for Member testDelete",
+    "priority": "medium",
+    "assigned_to": "{{memberId}}"
+}
+
+### Capture Task Data
+@taskId = {{taskSetup.response.body.data.id}}
+
+### 8. Verify Initial State
+# Should show assigned_to = MemberId
+GET {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{adminToken}}
+
+### 9. ACTION: Deactivate Member
+# @name deactivation
+DELETE {{baseUrl}}/users/{{memberId}}
+Authorization: Bearer {{adminToken}}
+
+### 10. VERIFY: User is Inactive
+GET {{baseUrl}}/users/{{memberId}}
+Authorization: Bearer {{adminToken}}
+
+### 11. VERIFY: Task Reassigned to Admin
+# Should show assigned_to = AdminId
+GET {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{adminToken}}

@@ -54,6 +54,22 @@ class UserController {
     }
   }
 
+  async deactivate(req, res, next) {
+    try {
+      const { id } = req.params;
+      const result = await userService.deactivateUser(req.user, id);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      if (error.message.startsWith('Access denied')) {
+        return res.status(403).json({ success: false, error: error.message });
+      }
+       if (error.message === 'User not found') {
+        return res.status(404).json({ success: false, error: error.message });
+      }
+      next(error);
+    }
+  }
+
   async assignProject(req, res, next) {
     try {
       const { id } = req.params;

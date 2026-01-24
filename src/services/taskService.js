@@ -9,6 +9,7 @@ class TaskService {
     const project = await projectRepository.findById(project_id);
     if (!project) throw new Error('Project not found');
     if (project.organization_id !== user.organization_id) throw new Error('Access denied');
+    if (project.status === 'archived') throw new Error('Cannot create tasks in an archived project');
 
     const task = await taskRepository.create({
       project_id,
@@ -72,6 +73,16 @@ class TaskService {
      }));
   }
 
+  async getTaskById(user, id) {
+    const task = await taskRepository.findById(id);
+    if (!task) throw new Error('Task not found');
+    
+    const project = await projectRepository.findById(task.project_id);
+    if (project.organization_id !== user.organization_id) throw new Error('Access denied');
+    
+    return task;
+  }
+
   // Full Update (Admin/Manager)
   async updateTask(user, id, updates) {
       const task = await taskRepository.findById(id);
@@ -79,6 +90,7 @@ class TaskService {
 
       const project = await projectRepository.findById(task.project_id);
       if (project.organization_id !== user.organization_id) throw new Error('Access denied');
+      if (project.status === 'archived') throw new Error('Cannot update tasks in an archived project');
 
       const updatedTask = await taskRepository.update(id, updates);
 
@@ -101,6 +113,7 @@ class TaskService {
     
     const project = await projectRepository.findById(task.project_id);
     if (project.organization_id !== user.organization_id) throw new Error('Access denied');
+    if (project.status === 'archived') throw new Error('Cannot update tasks in an archived project');
 
     if (user.role === 'member' && task.assigned_to !== user.id) {
         throw new Error('Access denied: Members can only update their own tasks');
@@ -150,6 +163,7 @@ class TaskService {
 
     const project = await projectRepository.findById(task.project_id);
     if (project.organization_id !== user.organization_id) throw new Error('Access denied');
+    if (project.status === 'archived') throw new Error('Cannot delete tasks in an archived project');
 
     await taskRepository.softDelete(id);
 

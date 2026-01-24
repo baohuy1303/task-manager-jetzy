@@ -6,12 +6,13 @@ class OrganizationService {
     const org = await organizationRepository.create(name);
     
     // Auto-link the creator to this organization
+    let updatedUser = null;
     if (user && user.id) {
         const userRepository = require('../repositories/userRepository');
-        await userRepository.updateOrganization(user.id, org.id);
+        updatedUser = await userRepository.updateOrganization(user.id, org.id);
     }
     
-    return org;
+    return { org, user: updatedUser };
   }
 
   async getOrganizationById(user, id) {

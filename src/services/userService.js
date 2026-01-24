@@ -1,8 +1,33 @@
 const userRepository = require('../repositories/userRepository');
 const organizationService = require('./organizationService');
+const taskRepository = require('../repositories/taskRepository');
 const bcrypt = require('bcrypt');
 
 class UserService {
+  async deactivateUser(adminUser, targetUserId) {
+    // 1. Verify Permission (Admin only)
+    if (adminUser.role !== 'admin') {
+        throw new Error('Access denied: Only admins can deactivate users');
+    }
+
+    // 2. Verify Target User exists and belongs to same Org
+    const targetUser = await this.getUserById(targetUserId);
+    if (targetUser.organization_id !== adminUser.organization_id) {
+        throw new Error('Access denied: User is in different organization');
+    }
+
+    // 3. Deactivate User
+    const deactivatedUser = await userRepository.deactivate(targetUserId);
+
+    // 4. Reassign Tasks
+    // Logic: Tasks assigned to this user are moved to the creator of their respective projects.
+    const reassignedTasks = await taskRepository.reassignTasksToProjectCreator({ old_assigned_to: targetUserId });
+
+    return {
+        user: deactivatedUser,
+        reassignedTasksCount: reassignedTasks.length
+    };
+  }
   async createUser({ organization_id, name, email, password, role }) {
     // 1. Check if user exists
     const existingUser = await userRepository.findByEmail(email);

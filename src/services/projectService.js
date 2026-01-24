@@ -85,6 +85,10 @@ class ProjectService {
 
     if (project.organization_id !== user.organization_id) throw new Error('Access denied');
 
+    if (project.status === 'archived' && updates.status !== 'active') {
+        throw new Error('Cannot modify an archived project');
+    }
+
     // Audit Log before update
     await auditLogRepository.create({
       organization_id: user.organization_id,
