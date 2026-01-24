@@ -17,9 +17,10 @@ class OrganizationController {
   async getById(req, res, next) {
     try {
       const { id } = req.params;
-      const org = await organizationService.getOrganizationById(id);
+      const org = await organizationService.getOrganizationById(req.user, id);
       res.json({ success: true, data: org });
     } catch (error) {
+       if (error.message === 'Access denied') return res.status(403).json({ success: false, error: error.message });
       if (error.message === 'Organization not found') {
         return res.status(404).json({ success: false, error: error.message });
       }
@@ -30,7 +31,7 @@ class OrganizationController {
   async suspend(req, res, next) {
     try {
       const { id } = req.params;
-      const org = await organizationService.suspendOrganization(id);
+      const org = await organizationService.suspendOrganization(req.user, id);
       res.json({ success: true, message: 'Organization suspended', data: org });
     } catch (error) {
         if (error.message === 'Organization not found') {
@@ -43,7 +44,7 @@ class OrganizationController {
   async activate(req, res, next) {
     try {
       const { id } = req.params;
-      const org = await organizationService.activateOrganization(id);
+      const org = await organizationService.activateOrganization(req.user, id);
       res.json({ success: true, message: 'Organization activated', data: org });
     } catch (error) {
         if (error.message === 'Organization not found') {

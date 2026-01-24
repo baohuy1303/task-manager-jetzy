@@ -11,10 +11,10 @@ class ProjectController {
     }
   }
 
-  async getAll(req, res, next) {
+  async getProjects(req, res, next) {
     try {
       const { page, limit } = req.query;
-      const projects = await projectService.getProjectsByOrg(req.user.organization_id, page, limit);
+      const projects = await projectService.getProjectsByOrganization(req.user, page, limit);
       res.json({ success: true, count: projects.length, data: projects });
     } catch (error) {
       next(error);
@@ -23,7 +23,7 @@ class ProjectController {
 
   async getById(req, res, next) {
     try {
-      const project = await projectService.getProjectById(req.params.id, req.user.organization_id);
+      const project = await projectService.getProjectById(req.user, req.params.id);
       res.json({ success: true, data: project });
     } catch (error) {
        if (error.message === 'Project not found') return res.status(404).json({success: false, error: 'Project not found'});

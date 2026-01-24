@@ -25,7 +25,7 @@ class AuthService {
 
   generateToken(user) {
     return jwt.sign(
-      { id: user.id, role: user.role, organization_id: user.organization_id },
+      { id: user.id, role: user.role, organization_id: user.organization_id, project_id: user.project_id },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );

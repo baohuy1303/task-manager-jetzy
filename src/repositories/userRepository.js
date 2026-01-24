@@ -29,6 +29,18 @@ class UserRepository {
      const { rows } = await query(text, [organization_id]);
      return rows;
   }
+
+  async updateOrganization(id, organization_id) {
+    const text = 'UPDATE users SET organization_id = $2 WHERE id = $1 RETURNING *';
+    const { rows } = await query(text, [id, organization_id]);
+    return rows[0];
+  }
+
+  async updateProject(id, project_id) {
+    const text = 'UPDATE users SET project_id = $2 WHERE id = $1 RETURNING *';
+    const { rows } = await query(text, [id, project_id]);
+    return rows[0];
+  }
 }
 
 module.exports = new UserRepository();

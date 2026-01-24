@@ -39,7 +39,7 @@ class UserService {
      const org = await orgRepo.findById(organization_id);
      if (!org) throw new Error('Organization not found');
 
-     return await userRepository.update(id, { organization_id });
+     return await userRepository.updateOrganization(id, organization_id);
   }
 
   async assignProject(adminUser, userId, projectId) {
@@ -54,7 +54,7 @@ class UserService {
           if (project.organization_id !== adminUser.organization_id) throw new Error('Access denied: Project is in different organization');
       }
 
-      return await userRepository.update(userId, { project_id: projectId });
+      return await userRepository.updateProject(userId, projectId);
   }
 
   async assignProject(adminUser, userId, projectId) {
@@ -69,7 +69,7 @@ class UserService {
           if (project.organization_id !== adminUser.organization_id) throw new Error('Access denied: Project is in different organization');
       }
 
-      return await userRepository.update(userId, { project_id: projectId });
+      return await userRepository.updateProject(userId, projectId);
   }
 
   async getUserById(id) {

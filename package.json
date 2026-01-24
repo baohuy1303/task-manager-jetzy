@@ -7,9 +7,11 @@
     "dev": "nodemon src/server.js",
     "migrate:create": "node-pg-migrate create",
     "migrate:up": "node-pg-migrate up",
-    "migrate:down": "node-pg-migrate down"
+    "migrate:down": "node-pg-migrate down",
+    "seed": "node scripts/seedData.js"
   },
   "dependencies": {
+    "@faker-js/faker": "^10.2.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",

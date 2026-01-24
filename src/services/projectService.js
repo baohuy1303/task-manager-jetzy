@@ -28,7 +28,7 @@ class ProjectService {
     return project;
   }
 
-  async getAllProjects(user) {
+  async getProjectsByOrganization(user) {
     if (!user.organization_id) return [];
 
     // Admin/Manager: See all in Org
@@ -41,7 +41,6 @@ class ProjectService {
         if (!user.project_id) return []; // Access to nothing
         const project = await projectRepository.findById(user.project_id);
         
-        // Safety check: ensure project is still in same org (though assignment logic checks this)
         if (project && project.organization_id === user.organization_id) {
             return [project];
         }

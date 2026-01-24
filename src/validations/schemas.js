@@ -48,6 +48,14 @@ const taskSchema = {
   updateStatus: Joi.object({
       status: Joi.string().valid('todo', 'in_progress', 'review', 'done').required(),
   }),
+  update: Joi.object({
+      title: Joi.string().optional(),
+      description: Joi.string().optional(),
+      priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
+      due_date: Joi.date().iso().optional(),
+      assigned_to: Joi.string().uuid().optional(),
+      status: Joi.string().valid('todo', 'in_progress', 'review', 'done').optional(),
+  }),
 };
 
 module.exports = {

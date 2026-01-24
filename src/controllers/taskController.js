@@ -23,6 +23,18 @@ class TaskController {
     }
   }
 
+  async update(req, res, next) {
+    try {
+      const { id } = req.params;
+      const task = await taskService.updateTask(req.user, id, req.body);
+      res.json({ success: true, data: task });
+    } catch (error) {
+       if (error.message === 'Task not found') return res.status(404).json({ success: false, error: error.message });
+       if (error.message.startsWith('Access denied')) return res.status(403).json({ success: false, error: error.message });
+      next(error);
+    }
+  }
+
   async updateStatus(req, res, next) {
     try {
       const { id } = req.params;

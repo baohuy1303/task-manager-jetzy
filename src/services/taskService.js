@@ -37,27 +37,46 @@ class TaskService {
      
      // Member Restriction: Can only read tasks assigned to them
      if (user.role === 'member') {
-        const tasks = await taskRepository.findByProject(project_id);
-        return tasks.filter(task => task.assigned_to === user.id && !task.is_deleted);
+        const tasks = await taskRepository.findByProjectAndAssignee(project_id, user.id);
+        return tasks;
      }
 
      return await taskRepository.findByProject(project_id);
+  }
+
+  // Full Update (Admin/Manager)
+  async updateTask(user, id, updates) {
+      const task = await taskRepository.findById(id);
+      if (!task) throw new Error('Task not found');
+
+      const project = await projectRepository.findById(task.project_id);
+      if (project.organization_id !== user.organization_id) throw new Error('Access denied');
+
+      const updatedTask = await taskRepository.update(id, updates);
+
+      // Audit Log
+      await auditLogRepository.create({
+        organization_id: user.organization_id,
+        entity_type: 'task',
+        entity_id: task.id,
+        action: 'update',
+        performed_by: user.id,
+        metadata: updates
+      });
+
+      return updatedTask;
   }
 
   async updateTaskStatus(user, id, newStatus) {
     const task = await taskRepository.findById(id);
     if (!task) throw new Error('Task not found');
     
-    // Check Org access (indirectly via project)
     const project = await projectRepository.findById(task.project_id);
     if (project.organization_id !== user.organization_id) throw new Error('Access denied');
 
-    // Member Restriction: Can only update if assigned to them
     if (user.role === 'member' && task.assigned_to !== user.id) {
         throw new Error('Access denied: Members can only update their own tasks');
     }
-
-    // Workflow Logic
     const oldStatus = task.status;
     if (oldStatus === newStatus) return task;
 

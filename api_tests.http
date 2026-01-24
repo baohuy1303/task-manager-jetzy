@@ -1,169 +1,191 @@
-### API Test Suite (Jetzy Task Manager)
+### Jetzy Task Manager - End-to-End Functional Test Suite
 # Use with VS Code "REST Client" extension
 
 @baseUrl = http://localhost:3000/api/v1
-@adminEmail = admin@jetzy.com
-@password = password123
 
 ### ------------------------------------------------------------
-### 1. FOUNDATION & AUTH
+### FLOW 1: ADMIN - Onboarding & Setup
 ### ------------------------------------------------------------
 
-### Health Check
-GET {{baseUrl}}/health
+### A1. Admin Sign Up (Public - Org-less)
+# @name adminSignUp
+POST {{baseUrl}}/users
+Content-Type: application/json
 
-### Login (Get Token)
-# @name login
+{
+    "name": "Super Admin",
+    "email": "master-admin@jetzy.com",
+    "password": "password123",
+    "role": "admin"
+}
+
+### Capture Admin ID
+@adminId = {{adminSignUp.response.body.data.id}}
+
+### A2. Admin Login
+# @name adminLogin
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-    "email": "{{adminEmail}}",
-    "password": "{{password}}"
+    "email": "master-admin@jetzy.com",
+    "password": "password123"
 }
 
-### Capture Token from Login response
-@authToken = {{login.response.body.data.token}}
+### Capture Admin Token
+@adminToken = {{adminLogin.response.body.data.token}}
 
-
-### ------------------------------------------------------------
-### 2. ORGANIZATIONS (CRUD)
-### ------------------------------------------------------------
-
-### List all Organizations
-GET {{baseUrl}}/organizations
-
-### Create a new Organization
+### A3. Admin Creates Organization
 # @name createOrg
 POST {{baseUrl}}/organizations
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
-    "name": "New Venture Corp"
+    "name": "Jetzy Engineering"
 }
 
-### Capture New Org ID
-@newOrgId = {{createOrg.response.body.data.id}}
+### Capture Org ID
+@orgId = {{createOrg.response.body.data.id}}
 
-### Get Organization by ID
-GET {{baseUrl}}/organizations/{{newOrgId}}
+### A4. Admin Links Self to the Organization
+PATCH {{baseUrl}}/users/{{adminId}}/organization
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
 
-### Suspend Organization
-PATCH {{baseUrl}}/organizations/{{newOrgId}}/suspend
+{
+    "organization_id": "{{orgId}}"
+}
 
-### Activate Organization (Restore)
-PATCH {{baseUrl}}/organizations/{{newOrgId}}/activate
+### A5. Admin Creates a Manager
+# @name createManager
+POST {{baseUrl}}/users
+Content-Type: application/json
 
+{
+    "organization_id": "{{orgId}}",
+    "name": "Manager Bob",
+    "email": "bob-manager@jetzy.com",
+    "password": "password123",
+    "role": "manager"
+}
 
-### ------------------------------------------------------------
-### 3. USERS (CRUD)
-### ------------------------------------------------------------
-
-### Create a User for the new Org
+### A6. Admin Creates a Member
 # @name createMember
 POST {{baseUrl}}/users
 Content-Type: application/json
 
 {
-    "organization_id": "{{newOrgId}}",
-    "name": "Member User",
-    "email": "member@newventure.com",
+    "organization_id": "{{orgId}}",
+    "name": "Member Alice",
+    "email": "alice-member@jetzy.com",
     "password": "password123",
     "role": "member"
 }
 
-### Get User by ID
+### Capture Member ID
 @memberId = {{createMember.response.body.data.id}}
-GET {{baseUrl}}/users/{{memberId}}
 
 
 ### ------------------------------------------------------------
-### 4. PROJECTS (CRUD)
+### FLOW 2: MANAGER - Projects & Tasks
 ### ------------------------------------------------------------
 
-### Create a new Project (Jetzy Admin)
-# @name createProject
-POST {{baseUrl}}/projects
-Authorization: Bearer {{authToken}}
+### M1. Manager Login
+# @name managerLogin
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-    "name": "Internal Audit",
-    "description": "Quarterly security check",
+    "email": "bob-manager@jetzy.com",
+    "password": "password123"
+}
+
+### Capture Manager Token
+@managerToken = {{managerLogin.response.body.data.token}}
+
+### M2. Manager Creates a Project
+# @name createProject
+POST {{baseUrl}}/projects
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+    "name": "Project Apollo",
+    "description": "Moon landing project",
     "status": "active"
 }
 
 ### Capture Project ID
 @projectId = {{createProject.response.body.data.id}}
 
-### Get Project by ID
-GET {{baseUrl}}/projects/{{projectId}}
-Authorization: Bearer {{authToken}}
-
-### Update Project
-PATCH {{baseUrl}}/projects/{{projectId}}
-Authorization: Bearer {{authToken}}
+### M3. Manager Assigns the Member to this Project (The "One Project" Rule)
+PATCH {{baseUrl}}/users/{{memberId}}/project
+Authorization: Bearer {{managerToken}}
 Content-Type: application/json
 
 {
-    "description": "Updated description for security check",
-    "status": "archived"
+    "project_id": "{{projectId}}"
 }
 
-### List All Projects for Jetzy
-GET {{baseUrl}}/projects
-Authorization: Bearer {{authToken}}
-
-
-### ------------------------------------------------------------
-### 5. TASKS & WORKFLOW (CRUD)
-### ------------------------------------------------------------
-
-### Create a Task
+### M4. Manager Creates and Assigns a Task
 # @name createTask
 POST {{baseUrl}}/tasks
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{managerToken}}
 Content-Type: application/json
 
 {
     "project_id": "{{projectId}}",
-    "title": "Review database logs",
-    "description": "Check for unauthorized access attempts",
-    "priority": "urgent"
+    "title": "Build the Rocket",
+    "description": "Assemble the main booster engines",
+    "priority": "urgent",
+    "assigned_to": "{{memberId}}"
 }
 
 ### Capture Task ID
 @taskId = {{createTask.response.body.data.id}}
 
-### List Tasks for Project
-GET {{baseUrl}}/tasks?project_id={{projectId}}
-Authorization: Bearer {{authToken}}
 
-### Update Task Status: Valid (todo -> in_progress)
+### ------------------------------------------------------------
+### FLOW 3: MEMBER - Scoped Execution
+### ------------------------------------------------------------
+
+### B1. Member Login
+# @name memberLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "alice-member@jetzy.com",
+    "password": "password123"
+}
+
+### Capture Member Token
+@memberToken = {{memberLogin.response.body.data.token}}
+
+### B2. Member Sees ONLY their assigned project
+GET {{baseUrl}}/projects
+Authorization: Bearer {{memberToken}}
+
+### B3. Member Sees ONLY their assigned tasks
+GET {{baseUrl}}/tasks?project_id={{projectId}}
+Authorization: Bearer {{memberToken}}
+
+### B4. Member Successfully Updates Task Status
 PATCH {{baseUrl}}/tasks/{{taskId}}/status
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{memberToken}}
 Content-Type: application/json
 
 {
     "status": "in_progress"
 }
 
-### Update Task Status: Invalid (in_progress -> done directly, assuming workflow rule)
-# In our TaskService: in_progress -> review -> done
-# This should FAIL with 400
+### B5. Member TRIES to update Task Title (Should fail - Input Validation blocks this)
+# Members only have 'status' in their update schema
 PATCH {{baseUrl}}/tasks/{{taskId}}/status
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{memberToken}}
 Content-Type: application/json
 
 {
-    "status": "done"
-}
-
-### Update Task Status: Valid (in_progress -> review)
-PATCH {{baseUrl}}/tasks/{{taskId}}/status
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-{
-    "status": "review"
+    "title": "Hack the Rocket"
 }
