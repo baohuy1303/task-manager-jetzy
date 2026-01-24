@@ -1,0 +1,169 @@
+### API Test Suite (Jetzy Task Manager)
+# Use with VS Code "REST Client" extension
+
+@baseUrl = http://localhost:3000/api/v1
+@adminEmail = admin@jetzy.com
+@password = password123
+
+### ------------------------------------------------------------
+### 1. FOUNDATION & AUTH
+### ------------------------------------------------------------
+
+### Health Check
+GET {{baseUrl}}/health
+
+### Login (Get Token)
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "{{adminEmail}}",
+    "password": "{{password}}"
+}
+
+### Capture Token from Login response
+@authToken = {{login.response.body.data.token}}
+
+
+### ------------------------------------------------------------
+### 2. ORGANIZATIONS (CRUD)
+### ------------------------------------------------------------
+
+### List all Organizations
+GET {{baseUrl}}/organizations
+
+### Create a new Organization
+# @name createOrg
+POST {{baseUrl}}/organizations
+Content-Type: application/json
+
+{
+    "name": "New Venture Corp"
+}
+
+### Capture New Org ID
+@newOrgId = {{createOrg.response.body.data.id}}
+
+### Get Organization by ID
+GET {{baseUrl}}/organizations/{{newOrgId}}
+
+### Suspend Organization
+PATCH {{baseUrl}}/organizations/{{newOrgId}}/suspend
+
+### Activate Organization (Restore)
+PATCH {{baseUrl}}/organizations/{{newOrgId}}/activate
+
+
+### ------------------------------------------------------------
+### 3. USERS (CRUD)
+### ------------------------------------------------------------
+
+### Create a User for the new Org
+# @name createMember
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+    "organization_id": "{{newOrgId}}",
+    "name": "Member User",
+    "email": "member@newventure.com",
+    "password": "password123",
+    "role": "member"
+}
+
+### Get User by ID
+@memberId = {{createMember.response.body.data.id}}
+GET {{baseUrl}}/users/{{memberId}}
+
+
+### ------------------------------------------------------------
+### 4. PROJECTS (CRUD)
+### ------------------------------------------------------------
+
+### Create a new Project (Jetzy Admin)
+# @name createProject
+POST {{baseUrl}}/projects
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "name": "Internal Audit",
+    "description": "Quarterly security check",
+    "status": "active"
+}
+
+### Capture Project ID
+@projectId = {{createProject.response.body.data.id}}
+
+### Get Project by ID
+GET {{baseUrl}}/projects/{{projectId}}
+Authorization: Bearer {{authToken}}
+
+### Update Project
+PATCH {{baseUrl}}/projects/{{projectId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "description": "Updated description for security check",
+    "status": "archived"
+}
+
+### List All Projects for Jetzy
+GET {{baseUrl}}/projects
+Authorization: Bearer {{authToken}}
+
+
+### ------------------------------------------------------------
+### 5. TASKS & WORKFLOW (CRUD)
+### ------------------------------------------------------------
+
+### Create a Task
+# @name createTask
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "title": "Review database logs",
+    "description": "Check for unauthorized access attempts",
+    "priority": "urgent"
+}
+
+### Capture Task ID
+@taskId = {{createTask.response.body.data.id}}
+
+### List Tasks for Project
+GET {{baseUrl}}/tasks?project_id={{projectId}}
+Authorization: Bearer {{authToken}}
+
+### Update Task Status: Valid (todo -> in_progress)
+PATCH {{baseUrl}}/tasks/{{taskId}}/status
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "status": "in_progress"
+}
+
+### Update Task Status: Invalid (in_progress -> done directly, assuming workflow rule)
+# In our TaskService: in_progress -> review -> done
+# This should FAIL with 400
+PATCH {{baseUrl}}/tasks/{{taskId}}/status
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "status": "done"
+}
+
+### Update Task Status: Valid (in_progress -> review)
+PATCH {{baseUrl}}/tasks/{{taskId}}/status
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "status": "review"
+}
