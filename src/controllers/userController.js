@@ -22,6 +22,12 @@ class UserController {
     try {
       const { id } = req.params;
       const user = await userService.getUserById(id);
+      
+      // Privacy Masking (Consistent with getAll)
+      if (req.user.role === 'member' && user.id !== req.user.id) {
+          user.project_id = undefined;
+      }
+
       res.json({ success: true, data: user });
     } catch (error) {
        if (error.message === 'User not found') {
@@ -61,6 +67,28 @@ class UserController {
       if (error.message.startsWith('Access denied')) {
         return res.status(403).json({ success: false, error: error.message });
       }
+      next(error);
+    }
+  }
+  async getAll(req, res, next) {
+    try {
+      const { role, is_active, project_id, search, limit, cursor } = req.query;
+      const filters = { role, is_active, project_id, search, limit, cursor };
+
+      const response = await userService.getUsersByOrganization(req.user.organization_id, filters);
+      
+      // Members can only see their own project_id.
+      if (req.user.role === 'member') {
+          response.data = response.data.map(u => {
+              if (u.id !== req.user.id) {
+                  return { ...u, project_id: undefined };
+              }
+              return u;
+          });
+      }
+
+      res.json(response);
+    } catch (error) {
       next(error);
     }
   }

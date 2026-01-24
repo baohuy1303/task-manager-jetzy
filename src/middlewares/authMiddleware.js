@@ -27,4 +27,15 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { authenticate, authorize };
+const requireOrganization = (req, res, next) => {
+    if (!req.user || !req.user.organization_id) {
+        return res.status(403).json({ 
+            success: false, 
+            error: 'Organization required.', 
+            message: 'You must create or join an organization to access this resource.' 
+        });
+    }
+    next();
+};
+
+module.exports = { authenticate, authorize, requireOrganization };

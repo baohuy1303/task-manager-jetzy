@@ -4,7 +4,7 @@ class OrganizationController {
   async create(req, res, next) {
     try {
       const { name } = req.body;
-      const org = await organizationService.createOrganization(name);
+      const org = await organizationService.createOrganization(req.user, name);
       res.status(201).json({ success: true, data: org });
     } catch (error) {
       if (error.message === 'Organization name is required') {

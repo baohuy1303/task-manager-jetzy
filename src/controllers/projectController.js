@@ -13,9 +13,11 @@ class ProjectController {
 
   async getProjects(req, res, next) {
     try {
-      const { page, limit } = req.query;
-      const projects = await projectService.getProjectsByOrganization(req.user, page, limit);
-      res.json({ success: true, count: projects.length, data: projects });
+      const { status, search, created_by, created_after, created_before, limit, cursor } = req.query;
+      const filters = { status, search, created_by, created_after, created_before, limit, cursor };
+      
+      const response = await projectService.getProjectsByOrganization(req.user, filters);
+      res.json(response);
     } catch (error) {
       next(error);
     }

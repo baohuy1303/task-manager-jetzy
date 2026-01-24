@@ -1,9 +1,17 @@
 const organizationRepository = require('../repositories/organizationRepository');
 
 class OrganizationService {
-  async createOrganization(name) {
+  async createOrganization(user, name) {
     if (!name) throw new Error('Organization name is required');
-    return await organizationRepository.create(name);
+    const org = await organizationRepository.create(name);
+    
+    // Auto-link the creator to this organization
+    if (user && user.id) {
+        const userRepository = require('../repositories/userRepository');
+        await userRepository.updateOrganization(user.id, org.id);
+    }
+    
+    return org;
   }
 
   async getOrganizationById(user, id) {

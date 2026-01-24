@@ -11,13 +11,13 @@ class TaskController {
     }
   }
 
-  async getByProject(req, res, next) {
+  async getTasks(req, res, next) {
     try {
-      const { project_id } = req.query; // ?project_id=...
-      if (!project_id) return res.status(400).json({ success: false, error: 'project_id is required' });
+      const { project_id, status, priority, assigned_to, due_before, due_after, limit, cursor } = req.query;
+      const filters = { project_id, status, priority, assigned_to, due_before, due_after, limit, cursor };
       
-      const tasks = await taskService.getTasksByProject(req.user, project_id);
-      res.json({ success: true, count: tasks.length, data: tasks });
+      const response = await taskService.getTasks(req.user, filters);
+      res.json(response); // Service now returns formatted { success, meta, data }
     } catch (error) {
       next(error);
     }

@@ -28,15 +28,29 @@ class ProjectService {
     return project;
   }
 
-  async getProjectsByOrganization(user) {
-    if (!user.organization_id) return [];
+  async getProjectsByOrganization(user, filters = {}) {
+    if (!user.organization_id) return { success: true, count: 0, data: [], meta: { has_more: false } };
 
-    // Admin/Manager: See all in Org
+    const { decodeCursor, buildPaginationResponse } = require('../utils/pagination');
+    const limit = parseInt(filters.limit) || 20; // Default lower for projects
+    const cursor = decodeCursor(filters.cursor);
+
+    // Admin/Manager: See all in Org with filters + pagination
     if (user.role === 'admin' || user.role === 'manager') {
-        return await projectRepository.findByOrganization(user.organization_id);
+        const projects = await projectRepository.findByOrganization(user.organization_id, { 
+            ...filters, 
+            limit, 
+            cursor 
+        });
+        
+        return buildPaginationResponse(projects, limit, (item) => ({
+            sortValue: item.created_at,
+            id: item.id
+        }));
     }
 
     // Member: Simplified Scope - Only see assigned project
+    // Pagination technically irrelevant here (1 item), but we should respect format
     if (user.role === 'member') {
         if (!user.project_id) return []; // Access to nothing
         const project = await projectRepository.findById(user.project_id);
@@ -46,7 +60,7 @@ class ProjectService {
         }
         return [];
     }
-    return [];
+    return buildPaginationResponse([], limit, () => {});
   }
 
   async getProjectById(user, id) {

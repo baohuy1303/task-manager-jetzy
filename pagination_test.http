@@ -1,0 +1,129 @@
+### Jetzy Task Manager - Pagination Test Suite
+@baseUrl = http://localhost:3000/api/v1
+@password = password123
+
+### ----------------------------------------------------------------------
+### 1. SETUP & AUTH
+### ----------------------------------------------------------------------
+
+### Login Manager
+# @name managerLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager@alpha.com",
+  "password": "{{password}}"
+}
+
+###
+
+@token = {{managerLogin.response.body.data.token}}
+
+### Get Mega Project ID
+# @name getMegaProject
+GET {{baseUrl}}/projects?search=Mega
+Authorization: Bearer {{token}}
+
+###
+
+@megaProjectId = {{getMegaProject.response.body.data[0].id}}
+
+
+### ----------------------------------------------------------------------
+### 2. TASK PAGINATION (2000 items -> Pages of 10)
+### ----------------------------------------------------------------------
+
+### PAGE 1: Get first 10 tasks
+# @name getTasksPage1
+GET {{baseUrl}}/tasks?project_id={{megaProjectId}}&limit=10
+Authorization: Bearer {{token}}
+
+###
+@taskCursor = {{getTasksPage1.response.body.meta.next_cursor}}
+
+### PAGE 2: Get next 10 tasks (using cursor)
+# @name getTasksPage2
+GET {{baseUrl}}/tasks?project_id={{megaProjectId}}&limit=10&cursor={{taskCursor}}
+Authorization: Bearer {{token}}
+
+###
+@taskCursor2 = {{getTasksPage2.response.body.meta.next_cursor}}
+
+### PAGE 3: Get next 10 tasks (using cursor)
+# @name getTasksPage3
+GET {{baseUrl}}/tasks?project_id={{megaProjectId}}&limit=10&cursor={{taskCursor2}}
+Authorization: Bearer {{token}}
+
+
+### ----------------------------------------------------------------------
+### 3. PROJECT PAGINATION (30 items -> Pages of 5)
+### ----------------------------------------------------------------------
+
+### PAGE 1: Get first 5 projects
+# @name getProjectsPage1
+GET {{baseUrl}}/projects?limit=5
+Authorization: Bearer {{token}}
+
+###
+@projectCursor = {{getProjectsPage1.response.body.meta.next_cursor}}
+
+### PAGE 2: Get next 5 projects
+GET {{baseUrl}}/projects?limit=5&cursor={{projectCursor}}
+Authorization: Bearer {{token}}
+
+
+### ----------------------------------------------------------------------
+### 4. USER PAGINATION (~25 items -> Pages of 5)
+### ----------------------------------------------------------------------
+
+### PAGE 1: Get first 5 users
+# @name getUsersPage1
+GET {{baseUrl}}/users?limit=5
+Authorization: Bearer {{token}}
+
+###
+@userCursor = {{getUsersPage1.response.body.meta.next_cursor}}
+
+### PAGE 2: Get next 5 users
+### PAGE 2: Get next 5 users
+GET {{baseUrl}}/users?limit=5&cursor={{userCursor}}
+Authorization: Bearer {{token}}
+
+
+### ----------------------------------------------------------------------
+### 5. MEMBER ROLE VERIFICATION (Scoped Access)
+### ----------------------------------------------------------------------
+
+### Login Member
+# @name memberLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "member@alpha.com",
+  "password": "{{password}}"
+}
+
+###
+@memberToken = {{memberLogin.response.body.data.token}}
+
+### 👷 MEMBER: Project Pagination (Expected: 1 Item Only)
+# Even with limit=5, should only see 1.
+GET {{baseUrl}}/projects?limit=5
+Authorization: Bearer {{memberToken}}
+
+### 👷 MEMBER: Task Pagination (Expected: 200 Items Total)
+# Should be able to paginate through their 200 items, but NOT see the full 2000.
+# Page 1
+# @name getMemberTasks1
+GET {{baseUrl}}/tasks?project_id={{megaProjectId}}&limit=10
+Authorization: Bearer {{memberToken}}
+
+###
+@memberTaskCursor = {{getMemberTasks1.response.body.meta.next_cursor}}
+
+### 👷 MEMBER: Task Page 2
+GET {{baseUrl}}/tasks?project_id={{megaProjectId}}&limit=10&cursor={{memberTaskCursor}}
+Authorization: Bearer {{memberToken}}
+

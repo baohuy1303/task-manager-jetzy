@@ -19,14 +19,55 @@ class UserRepository {
   }
 
   async findById(id) {
-    const text = 'SELECT id, organization_id, name, email, role, is_active, created_at FROM users WHERE id = $1';
+    const text = 'SELECT id, organization_id, name, email, role, is_active, project_id, created_at FROM users WHERE id = $1';
     const { rows } = await query(text, [id]);
     return rows[0];
   }
 
-  async findByOrganization(organization_id) {
-     const text = 'SELECT id, organization_id, name, email, role, is_active, created_at FROM users WHERE organization_id = $1';
-     const { rows } = await query(text, [organization_id]);
+  async findByOrganization(organization_id, filters = {}) {
+     let text = 'SELECT id, organization_id, name, email, role, is_active, project_id, created_at FROM users WHERE organization_id = $1';
+     const values = [organization_id];
+     let paramIndex = 2;
+
+     if (filters.role) {
+         text += ` AND role = $${paramIndex++}`;
+         values.push(filters.role);
+     }
+
+     if (filters.is_active !== undefined) {
+         text += ` AND is_active = $${paramIndex++}`;
+         values.push(filters.is_active);
+     }
+
+     if (filters.project_id) {
+         text += ` AND project_id = $${paramIndex++}`;
+         values.push(filters.project_id);
+     }
+
+     if (filters.search) {
+         text += ` AND name ILIKE $${paramIndex++}`;
+         values.push(`%${filters.search}%`);
+     }
+
+     if (filters.email) {
+         text += ` AND email = $${paramIndex++}`;
+         values.push(filters.email);
+     }
+
+     // CURSOR CLAUSE
+     if (filters.cursor) {
+        text += ` AND (date_trunc('milliseconds', created_at), id) < ($${paramIndex++}, $${paramIndex++})`;
+        values.push(filters.cursor.sortValue, filters.cursor.id);
+     }
+
+     text += ' ORDER BY created_at DESC, id DESC';
+
+     // LIMIT
+     const limit = filters.limit || 50;
+     text += ` LIMIT $${paramIndex++}`;
+     values.push(limit + 1);
+
+     const { rows } = await query(text, values);
      return rows;
   }
 

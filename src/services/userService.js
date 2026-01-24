@@ -78,8 +78,21 @@ class UserService {
     return user;
   }
 
-  async getUsersByOrganization(organization_id) {
-    return await userRepository.findByOrganization(organization_id);
+  async getUsersByOrganization(organization_id, filters = {}) {
+    const { decodeCursor, buildPaginationResponse } = require('../utils/pagination');
+    const limit = parseInt(filters.limit) || 50;
+    const cursor = decodeCursor(filters.cursor);
+
+    const users = await userRepository.findByOrganization(organization_id, {
+        ...filters,
+        limit,
+        cursor
+    });
+
+    return buildPaginationResponse(users, limit, (item) => ({
+        sortValue: item.created_at,
+        id: item.id
+    }));
   }
 }
 

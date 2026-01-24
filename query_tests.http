@@ -1,0 +1,176 @@
+### Jetzy Task Manager - Query Capabilities Test Suite
+@baseUrl = http://localhost:3000/api/v1
+@password = password123
+
+### Login Admin
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@alpha.com",
+  "password": "{{password}}"
+}
+
+### Login Manager
+# @name managerLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager@alpha.com",
+  "password": "{{password}}"
+}
+
+### Login Member
+# @name memberLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "member@alpha.com",
+  "password": "{{password}}"
+}
+
+###
+
+# Capture Data
+@adminToken = {{adminLogin.response.body.data.token}}
+@adminId = {{adminLogin.response.body.data.user.id}}
+@managerToken = {{managerLogin.response.body.data.token}}
+@memberToken = {{memberLogin.response.body.data.token}}
+@memberId = {{memberLogin.response.body.data.user.id}}
+
+### ----------------------------------------------------------------------
+### 2. PROJECT FILTERING
+
+# 🕵️‍♂️ ADMIN: Fetch all projects
+GET {{baseUrl}}/projects
+Authorization: Bearer {{adminToken}}
+
+### ADMIN: Find Mega Project
+# @name getMegaProject
+GET {{baseUrl}}/projects?search=Mega
+Authorization: Bearer {{adminToken}}
+
+@actualProjectId = {{getMegaProject.response.body.data[0].id}}
+
+### 👷 MEMBER: Should see 1 Project
+GET {{baseUrl}}/projects
+Authorization: Bearer {{memberToken}}
+
+### ----------------------------------------------------------------------
+### 3. USER FILTERING
+
+### 🕵️‍♂️ ADMIN: All members
+GET {{baseUrl}}/users?role=member
+Authorization: Bearer {{adminToken}}
+
+### 👷 MEMBER: Privacy Check (Masked emails)
+GET {{baseUrl}}/users
+Authorization: Bearer {{memberToken}}
+
+### ----------------------------------------------------------------------
+### 4. TASK FILTERING (Scale Test)
+
+### 👔 MANAGER: Mega Project (2000 Tasks)
+GET {{baseUrl}}/tasks?project_id={{actualProjectId}}
+Authorization: Bearer {{managerToken}}
+
+### 👔 MANAGER: Urgent Tasks only
+GET {{baseUrl}}/tasks?project_id={{actualProjectId}}&priority=urgent
+Authorization: Bearer {{managerToken}}
+
+### 👷 MEMBER: Mega Project (200 Tasks)
+# Optimization Check: count should be 200
+GET {{baseUrl}}/tasks?project_id={{actualProjectId}}
+Authorization: Bearer {{memberToken}}
+
+### 👷 MEMBER: Todo Tasks
+GET {{baseUrl}}/tasks?project_id={{actualProjectId}}&status=todo
+Authorization: Bearer {{memberToken}}
+
+### ☢️ SECURITY: Try to see Admin's tasks via param
+# Should ignore assigned_to and return own
+GET {{baseUrl}}/tasks
+Authorization: Bearer {{memberToken}}
+
+
+### ----------------------------------------------------------------------
+### 6. ORG-LESS ADMIN ("The Limbo State")
+### ----------------------------------------------------------------------
+
+### 1. Register New Admin (No Org ID)
+# @name registerLimbo
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "name": "Limbo Admin",
+  "email": "limbo@test.com",
+  "password": "{{password}}",
+  "role": "admin"
+}
+
+### 2. Login as Limbo Admin
+# @name loginLimbo
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "limbo@test.com",
+  "password": "{{password}}"
+}
+
+###
+@limboToken = {{loginLimbo.response.body.data.token}}
+@limboUserId = {{loginLimbo.response.body.data.user.id}}
+
+### 3. TEST GUARDRAILS (Should be 403 Forbidden)
+# Try to view tasks
+GET {{baseUrl}}/tasks
+Authorization: Bearer {{limboToken}}
+
+### Try to view projects (Should be 403)
+GET {{baseUrl}}/projects
+Authorization: Bearer {{limboToken}}
+
+### 4. ESCAPE LIMBO: Create Organization
+# @name createOrg
+POST {{baseUrl}}/organizations
+Authorization: Bearer {{limboToken}}
+Content-Type: application/json
+
+{
+  "name": "Limbo Solutions"
+}
+
+###
+@newOrgId = {{createOrg.response.body.data.id}}
+
+### 5. JOIN ORG: Admin links themselves
+PATCH {{baseUrl}}/users/{{limboUserId}}/organization
+Authorization: Bearer {{limboToken}}
+Content-Type: application/json
+
+{
+  "organization_id": "{{newOrgId}}"
+}
+
+### 6. VERIFY ACCESS REGAINED (Re-login needed?)
+### Re-Login Limbo Admin
+# @name loginLimbo2
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "limbo@test.com",
+  "password": "{{password}}"
+}
+
+###
+@limboToken2 = {{loginLimbo2.response.body.data.token}}
+
+### 7. VERIFY ACCESS (Should be 200 OK)
+GET {{baseUrl}}/projects
+Authorization: Bearer {{limboToken2}}

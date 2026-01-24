@@ -18,15 +18,87 @@ class TaskRepository {
     return rows[0];
   }
 
-  async findByProject(project_id) {
-    const text = 'SELECT * FROM tasks WHERE project_id = $1 AND is_deleted = false ORDER BY created_at DESC';
-    const { rows } = await query(text, [project_id]);
-    return rows;
-  }
+  async findAll({ organization_id, project_id, assigned_to, status, priority, due_before, due_after, is_deleted, limit = 50, cursor }) {
+    let text;
+    let values;
+    let paramIndex;
 
-  async findByProjectAndAssignee(project_id, user_id) {
-    const text = 'SELECT * FROM tasks WHERE project_id = $1 AND assigned_to = $2 AND is_deleted = false ORDER BY created_at DESC';
-    const { rows } = await query(text, [project_id, user_id]);
+    // Optimization: If filtering by assigned_to OR project_id, use direct table lookup
+    // We assume the service layer has already verified project ownership if project_id is provided.
+    const useDirectLookup = !!(assigned_to || project_id);
+
+    if (useDirectLookup) {
+        text = `SELECT * FROM tasks WHERE ${assigned_to ? 'assigned_to = $1' : 'project_id = $1'}`;
+        values = [assigned_to || project_id];
+        paramIndex = 2;
+    } else {
+        // Admin/Manager Flow (Broad): Must Join Projects to verify Organization
+        text = `
+            SELECT t.* 
+            FROM tasks t
+            JOIN projects p ON t.project_id = p.id
+            WHERE p.organization_id = $1
+        `;
+        values = [organization_id];
+        paramIndex = 2;
+    }
+
+    if (project_id && assigned_to) {
+        // If both are present (e.g. member filtering by project), and we started with assigned_to
+        text += ` AND project_id = $${paramIndex++}`;
+        values.push(project_id);
+    } else if (project_id && !useDirectLookup) {
+        // This case occurs if somehow useDirectLookup was false but project_id exists (not possible here but for clarity)
+        text += ` AND t.project_id = $${paramIndex++}`;
+        values.push(project_id);
+    }
+
+    if (status) {
+        text += ` AND ${useDirectLookup ? '' : 't.'}status = $${paramIndex++}`;
+        values.push(status);
+    }
+
+    if (priority) {
+        text += ` AND ${useDirectLookup ? '' : 't.'}priority = $${paramIndex++}`;
+        values.push(priority);
+    }
+
+    if (due_before) {
+        text += ` AND ${useDirectLookup ? '' : 't.'}due_date <= $${paramIndex++}`;
+        values.push(due_before);
+    }
+
+    if (due_after) {
+        text += ` AND ${useDirectLookup ? '' : 't.'}due_date >= $${paramIndex++}`;
+        values.push(due_after);
+    }
+
+    // Default to is_deleted = false unless specified
+    if (is_deleted !== undefined) {
+        text += ` AND ${useDirectLookup ? '' : 't.'}is_deleted = $${paramIndex++}`;
+        values.push(is_deleted);
+    } else {
+        text += ` AND ${useDirectLookup ? '' : 't.'}is_deleted = false`;
+    }
+
+    // CURSOR CLAUSE
+    if (cursor) {
+        // We use date_trunc('milliseconds', ...) to match JS Date precision.
+        // This ensures that rows with microseconds (.123456) are treated as equal to the JS cursor (.123),
+        // allowing the tuple comparison to correctly fall through to the ID sorting for tie-breaking.
+        const createdCol = `${useDirectLookup ? '' : 't.'}created_at`;
+        const idCol = `${useDirectLookup ? '' : 't.'}id`;
+        
+        text += ` AND (date_trunc('milliseconds', ${createdCol}), ${idCol}) < ($${paramIndex++}, $${paramIndex++})`;
+        values.push(cursor.sortValue, cursor.id);
+    }
+
+    text += ` ORDER BY ${useDirectLookup ? '' : 't.'}created_at DESC, ${useDirectLookup ? '' : 't.'}id DESC`;
+    
+    text += ` LIMIT $${paramIndex++}`;
+    values.push(limit + 1);
+
+    const { rows } = await query(text, values);
     return rows;
   }
 

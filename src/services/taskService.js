@@ -31,17 +31,45 @@ class TaskService {
     return task;
   }
 
-  async getTasksByProject(user, project_id) {
-     const project = await projectRepository.findById(project_id);
-     if (!project || project.organization_id !== user.organization_id) throw new Error('Access denied');
-     
-     // Member Restriction: Can only read tasks assigned to them
-     if (user.role === 'member') {
-        const tasks = await taskRepository.findByProjectAndAssignee(project_id, user.id);
-        return tasks;
+  async getTasks(user, filters = {}) {
+     // Enforce Organization Scope
+     const queryFilters = { ...filters, organization_id: user.organization_id };
+
+     // Verification: If project_id is provided, ensure it belongs to the user's organization
+     if (filters.project_id) {
+         const project = await projectRepository.findById(filters.project_id);
+         if (!project || project.organization_id !== user.organization_id) {
+             throw new Error('Access denied: Project not found or belongs to another organization');
+         }
+         
+         // Member-specific check: They must be assigned to the project they are querying
+         if (user.role === 'member' && user.project_id !== filters.project_id) {
+             throw new Error('Access denied: You are not assigned to this project');
+         }
      }
 
-     return await taskRepository.findByProject(project_id);
+     // - Can only see assigned to them
+     if (user.role === 'member') {
+         queryFilters.assigned_to = user.id;
+     }
+
+     const { decodeCursor, buildPaginationResponse } = require('../utils/pagination');
+     
+     // Pagination Logic
+     const limit = parseInt(filters.limit) || 50;
+     const cursor = decodeCursor(filters.cursor);
+     
+
+     const tasks = await taskRepository.findAll({
+         ...queryFilters,
+         limit,
+         cursor 
+     });
+
+     return buildPaginationResponse(tasks, limit, (item) => ({
+         sortValue: item.created_at,
+         id: item.id
+     }));
   }
 
   // Full Update (Admin/Manager)
