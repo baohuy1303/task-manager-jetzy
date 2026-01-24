@@ -34,11 +34,15 @@ class OrganizationService {
 
   async suspendOrganization(user, id) {
     const org = await this.getOrganizationById(user, id);
+    if (!org) throw new Error('Organization not found');
+    if (user.role !== 'admin' || user.organization_id !== id) throw new Error('Access denied');
     return await organizationRepository.updateStatus(id, 'suspended');
   }
 
   async activateOrganization(user, id) {
     const org = await this.getOrganizationById(user, id);
+    if (!org) throw new Error('Organization not found');
+    if (user.role !== 'admin' && user.organization_id !== id) throw new Error('Access denied');
     return await organizationRepository.updateStatus(id, 'active');
   }
 }

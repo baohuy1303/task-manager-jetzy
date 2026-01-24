@@ -3,11 +3,12 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const validate = require('../middlewares/validationMiddleware');
 const { userSchema } = require('../validations/schemas');
-const { authenticate, authorize, requireOrganization } = require('../middlewares/authMiddleware');
+const { authenticate, authorize, requireOrganization, validateOrganizationStatus } = require('../middlewares/authMiddleware');
 
 router.post('/', validate(userSchema.create), userController.create);
 
 router.use(authenticate);
+router.use(validateOrganizationStatus);
 
 // 1. Routes allowed properly WITHOUT Org (e.g. Linking)
 router.patch('/:id/organization', authorize('admin'), userController.updateOrganization);

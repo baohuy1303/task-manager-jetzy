@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const taskController = require('../controllers/taskController');
-const { authenticate, authorize, requireOrganization } = require('../middlewares/authMiddleware');
+const { authenticate, authorize, requireOrganization, validateOrganizationStatus } = require('../middlewares/authMiddleware');
 const validate = require('../middlewares/validationMiddleware');
 const { taskSchema } = require('../validations/schemas');
 
 router.use(authenticate);
+router.use(validateOrganizationStatus);
 router.use(requireOrganization); // All task routes require an org
 
 router.post('/', authorize('admin', 'manager'), validate(taskSchema.create), taskController.create);

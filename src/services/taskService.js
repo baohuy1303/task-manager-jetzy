@@ -10,6 +10,11 @@ class TaskService {
     if (!project) throw new Error('Project not found');
     if (project.organization_id !== user.organization_id) throw new Error('Access denied');
     if (project.status === 'archived') throw new Error('Cannot create tasks in an archived project');
+    if (assigned_to) {
+      const assignedUser = await userRepository.findById(assigned_to);
+      if (!assignedUser) throw new Error('User not found');
+      if (assignedUser.organization_id !== user.organization_id) throw new Error('Access denied');
+    }
 
     const task = await taskRepository.create({
       project_id,

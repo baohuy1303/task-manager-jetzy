@@ -15,6 +15,15 @@ class AuthService {
       throw new Error('Invalid email or password');
     }
 
+    const organizationRepository = require('../repositories/organizationRepository');
+    
+    if (user.organization_id) {
+        const org = await organizationRepository.findById(user.organization_id);
+        if (org && org.status === 'suspended' && user.role !== 'admin') {
+            throw new Error('Organization is suspended');
+        }
+    }
+
     if (!user.is_active) {
         throw new Error('User account is deactivated');
     }

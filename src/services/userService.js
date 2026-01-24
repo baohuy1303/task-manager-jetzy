@@ -62,7 +62,9 @@ class UserService {
      // Verify Org exists
      const orgRepo = require('../repositories/organizationRepository');
      const org = await orgRepo.findById(organization_id);
+     const user = await userRepository.findById(id);
      if (!org) throw new Error('Organization not found');
+     if (user.organization_id !== organization_id) throw new Error('User is in different organization');
 
      return await userRepository.updateOrganization(id, organization_id);
   }
