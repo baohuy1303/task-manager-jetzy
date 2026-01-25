@@ -19,13 +19,13 @@ class UserRepository {
   }
 
   async findById(id) {
-    const text = 'SELECT id, organization_id, name, email, role, is_active, project_id, created_at FROM users WHERE id = $1';
+    const text = 'SELECT id, organization_id, name, email, role, is_active, created_at FROM users WHERE id = $1';
     const { rows } = await query(text, [id]);
     return rows[0];
   }
 
   async findByOrganization(organization_id, filters = {}) {
-     let text = 'SELECT id, organization_id, name, email, role, is_active, project_id, created_at FROM users WHERE organization_id = $1';
+     let text = 'SELECT id, organization_id, name, email, role, is_active, created_at FROM users WHERE organization_id = $1';
      const values = [organization_id];
      let paramIndex = 2;
 
@@ -37,11 +37,8 @@ class UserRepository {
      if (filters.is_active !== undefined) {
          text += ` AND is_active = $${paramIndex++}`;
          values.push(filters.is_active);
-     }
-
-     if (filters.project_id) {
-         text += ` AND project_id = $${paramIndex++}`;
-         values.push(filters.project_id);
+     } else {
+         text += ` AND is_active = true`;
      }
 
      if (filters.search) {
@@ -85,6 +82,12 @@ class UserRepository {
 
   async deactivate(id) {
     const text = 'UPDATE users SET is_active = false WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at';
+    const { rows } = await query(text, [id]);
+    return rows[0];
+  }
+
+  async activate(id) {
+    const text = 'UPDATE users SET is_active = true WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at';
     const { rows } = await query(text, [id]);
     return rows[0];
   }

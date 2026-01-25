@@ -19,7 +19,8 @@ router.use(requireOrganization);
 // Admin/Manager Project Assignment Route
 router.patch('/:id/project', authorize('admin', 'manager'), userController.assignProject);
 router.delete('/:id', authorize('admin'), userController.deactivate); 
-router.get('/:id', authorize('admin', 'manager'), userController.getById); 
+router.patch('/:id/activate', authorize('admin'), userController.activate);
+router.get('/:id', authorize('admin', 'manager', 'member'), userController.getById); 
 router.get('/', authorize('admin', 'manager', 'member'), userController.getAll); 
 
 module.exports = router;

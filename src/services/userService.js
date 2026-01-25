@@ -2,6 +2,7 @@ const userRepository = require('../repositories/userRepository');
 const organizationService = require('./organizationService');
 const taskRepository = require('../repositories/taskRepository');
 const bcrypt = require('bcrypt');
+const projectMemberRepository = require('../repositories/projectMemberRepository');
 
 class UserService {
   async deactivateUser(adminUser, targetUserId) {
@@ -28,6 +29,21 @@ class UserService {
         reassignedTasksCount: reassignedTasks.length
     };
   }
+
+  async reactivateUser(adminUser, targetUserId) {
+      if (adminUser.role !== 'admin') {
+          throw new Error('Access denied: Only admins can reactivate users');
+      }
+
+      const targetUser = await this.getUserById(targetUserId);
+      if (targetUser.organization_id !== adminUser.organization_id) {
+          throw new Error('Access denied: User is in different organization');
+      }
+
+      return await userRepository.activate(targetUserId);
+  }
+
+  
   async createUser({ organization_id, name, email, password, role }) {
     // 1. Check if user exists
     const existingUser = await userRepository.findByEmail(email);
@@ -69,8 +85,12 @@ class UserService {
      return await userRepository.updateOrganization(id, organization_id);
   }
 
-  async assignProject(adminUser, userId, projectId) {
+  async assignProject(adminUser, userId, projectId, action = 'assign') {
       const targetUser = await this.getUserById(userId);
+      if (adminUser.role === 'manager' && targetUser.role === 'manager') {
+          throw new Error('Access denied: Managers cannot assign themselves to projects');
+      }
+      if (targetUser.role === 'admin') throw new Error('Admins cannot be assigned to projects');
       if (adminUser.organization_id !== targetUser.organization_id) throw new Error('Access denied: User is in different organization');
       
       // Verify Project exists and belongs to Org
@@ -79,25 +99,22 @@ class UserService {
           const project = await projectRepo.findById(projectId);
           if (!project) throw new Error('Project not found');
           if (project.organization_id !== adminUser.organization_id) throw new Error('Access denied: Project is in different organization');
+          const alreadyHasProject = await projectMemberRepository.findProjectsByUser(userId);
+          if (action === 'remove') {
+            if (alreadyHasProject.length === 0) {
+                throw new Error('User does not have a project assigned');
+            }
+              return await projectMemberRepository.removeMember(projectId, userId);
+          }
+          if (alreadyHasProject.length > 0) {
+              throw new Error('User already has a project assigned, remove the old one, and reassign');
+          }
+          return await projectMemberRepository.addMember(projectId, userId);
       }
-
-      return await userRepository.updateProject(userId, projectId);
+      return null;
   }
 
-  async assignProject(adminUser, userId, projectId) {
-      const targetUser = await this.getUserById(userId);
-      if (adminUser.organization_id !== targetUser.organization_id) throw new Error('Access denied: User is in different organization');
-      
-      // Verify Project exists and belongs to Org
-      if (projectId) {
-          const projectRepo = require('../repositories/projectRepository');
-          const project = await projectRepo.findById(projectId);
-          if (!project) throw new Error('Project not found');
-          if (project.organization_id !== adminUser.organization_id) throw new Error('Access denied: Project is in different organization');
-      }
 
-      return await userRepository.updateProject(userId, projectId);
-  }
 
   async getUserById(id) {
     const user = await userRepository.findById(id);
@@ -105,19 +122,35 @@ class UserService {
     return user;
   }
 
-  async getUsersByOrganization(organization_id, filters = {}) {
+  async getUsersByOrganization(user, filters = {}) {
+    // Note: 'user' is now the full user object, not just organization_id
+    const organization_id = user.organization_id;
     const { decodeCursor, buildPaginationResponse } = require('../utils/pagination');
     const limit = parseInt(filters.limit) || 50;
     const cursor = decodeCursor(filters.cursor);
 
-    const users = await userRepository.findByOrganization(organization_id, {
-        ...filters,
-        limit,
-        cursor
-    });
+    let users;
+    
+    if (filters.project_id) {
+        // Security Check: If requesting user is a member, they must be part of the project
+        if (user.role === 'member') {
+            const isMember = await projectMemberRepository.isMember(filters.project_id, user.id);
+            if (!isMember) {
+                throw new Error('Access denied: You are not a member of this project');
+            }
+        }
+
+        users = await projectMemberRepository.findMembersByProject(filters.project_id, { limit, cursor });
+    } else {
+        users = await userRepository.findByOrganization(organization_id, {
+            ...filters,
+            limit,  
+            cursor
+        });
+    }
 
     return buildPaginationResponse(users, limit, (item) => ({
-        sortValue: item.created_at,
+        sortValue: filters.project_id ? item.assigned_at : item.created_at,
         id: item.id
     }));
   }

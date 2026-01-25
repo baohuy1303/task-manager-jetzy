@@ -12,6 +12,12 @@ class ProjectRepository {
     return rows[0];
   }
 
+  async findByNameAndCreator(name, created_by) {
+    const text = 'SELECT * FROM projects WHERE name = $1 AND created_by = $2';
+    const { rows } = await query(text, [name, created_by]);
+    return rows[0];
+  }
+
   async findById(id) {
     const text = 'SELECT * FROM projects WHERE id = $1';
     const { rows } = await query(text, [id]);

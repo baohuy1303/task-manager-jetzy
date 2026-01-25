@@ -1,0 +1,81 @@
+@baseUrl = http://localhost:3000/api/v1
+@password = password123
+
+# @name adminRegister
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+    "name": "Admin Assign Test2",
+    "email": "admin_test@test2.com",
+    "password": "{{password}}",
+    "role": "admin"
+}
+
+### Authenticate Admin
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin_test@test2.com",
+  "password": "{{password}}"
+}
+
+### Capture Data
+@adminToken = {{loginAdmin.response.body.data.token}}
+@adminId = {{loginAdmin.response.body.data.user.id}}
+
+
+### Create Organization
+# @name createOrg
+POST {{baseUrl}}/organizations
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Test Organization"
+}
+
+### Create Project (Required for Task)
+# @name createProject
+POST {{baseUrl}}/projects
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Task Assignment Test Project2",
+  "description": "Project to test task assignment defaults"
+}
+
+### Create Task WITHOUT Assigned To (Should default to Admin)
+# @name createTaskDefault
+POST {{baseUrl}}/tasks
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "project_id": "{{createProject.response.body.data.id}}",
+  "title": "Task Default Assignment",
+  "description": "This task should be assigned to the creator automatically",
+  "priority": "medium"
+}
+
+### Get Task to Verify Assignment
+GET {{baseUrl}}/tasks/{{createTaskDefault.response.body.data.id}}
+Authorization: Bearer {{adminToken}}
+
+### Create Task WITH Assigned To (Should use provided ID)
+# Need another user ID ideally, but we can assign to self explicitly to test the field is respected
+# @name createTaskExplicit
+POST {{baseUrl}}/tasks
+Content-Type: application/json
+Authorization: Bearer {{loginAdmin.response.body.token}}
+
+{
+  "project_id": "{{createProject.response.body.data.id}}",
+  "title": "Task Explicit Assignment",
+  "description": "This task should be assigned explicitly",
+  "priority": "high",
+  "assigned_to": "{{loginAdmin.response.body.user.id}}"
+}

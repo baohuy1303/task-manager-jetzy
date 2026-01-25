@@ -1,9 +1,16 @@
 const { query } = require('../../config/db');
 
 class OrganizationRepository {
-  async create(name) {
-    const text = 'INSERT INTO organizations (name) VALUES ($1) RETURNING *';
-    const { rows } = await query(text, [name]);
+  async create(name, created_by) {
+    const text = 'INSERT INTO organizations (name, created_by) VALUES ($1, $2) RETURNING *';
+    const values = [name, created_by];
+    const { rows } = await query(text, values);
+    return rows[0];
+  }
+
+  async findByNameAndCreator(name, created_by) {
+    const text = 'SELECT * FROM organizations WHERE name = $1 AND created_by = $2';
+    const { rows } = await query(text, [name, created_by]);
     return rows[0];
   }
 

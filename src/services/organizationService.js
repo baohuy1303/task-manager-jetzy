@@ -3,7 +3,16 @@ const organizationRepository = require('../repositories/organizationRepository')
 class OrganizationService {
   async createOrganization(user, name) {
     if (!name) throw new Error('Organization name is required');
-    const org = await organizationRepository.create(name);
+    
+    // Check for duplicates by this user
+    if (user && user.id) {
+        const existingInfo = await organizationRepository.findByNameAndCreator(name, user.id);
+        if (existingInfo) {
+            throw new Error('You have already created an organization with this name');
+        }
+    }
+
+    const org = await organizationRepository.create(name, user ? user.id : null);
     
     // Auto-link the creator to this organization
     let updatedUser = null;

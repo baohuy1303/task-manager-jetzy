@@ -1,0 +1,71 @@
+@baseUrl = http://localhost:3000/api/v1
+@password = password123
+
+### 1. Setup
+# 1a. Login Admin
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin_test@test2.com",
+  "password": "{{password}}"
+}
+
+###
+@adminToken = {{loginAdmin.response.body.data.token}}
+@adminOrgId = {{loginAdmin.response.body.data.user.organization_id}}
+
+# 1b. Create User to Deactivate
+# @name createSoonDeactive
+POST {{baseUrl}}/users
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "name": "To Be Deactivated",
+    "email": "deactivate_me@test.com",
+    "organization_id": "{{adminOrgId}}",
+    "password": "{{password}}",
+    "role": "member"
+}
+
+###
+@targetUserId = {{createSoonDeactive.response.body.data.id}}
+
+# 1c. Create Project
+# @name createProject
+POST {{baseUrl}}/projects
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Deactivation Test Project",
+  "description": "Project to test member visibility after deactivation"
+}
+
+###
+@projectId = {{createProject.response.body.data.id}}
+
+# 1d. Assign User to Project
+PATCH {{baseUrl}}/users/{{targetUserId}}/project
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "project_id": "{{projectId}}"
+}
+
+### 2. Verify Member Visibility BEFORE Deactivation
+# @name getMembersBefore
+GET {{baseUrl}}/users?project_id={{projectId}}
+Authorization: Bearer {{adminToken}}
+
+### 3. Deactivate User
+DELETE {{baseUrl}}/users/{{targetUserId}}
+Authorization: Bearer {{adminToken}}
+
+### 4. Verify Member Visibility AFTER Deactivation (Should be empty)
+# @name getMembersAfter
+GET {{baseUrl}}/users?project_id={{projectId}}
+Authorization: Bearer {{adminToken}}

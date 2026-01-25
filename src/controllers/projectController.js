@@ -13,8 +13,8 @@ class ProjectController {
 
   async getProjects(req, res, next) {
     try {
-      const { status, search, created_by, created_after, created_before, limit, cursor } = req.query;
-      const filters = { status, search, created_by, created_after, created_before, limit, cursor };
+      const { status, search, created_by, created_after, created_before, limit, cursor, user_id } = req.query;
+      const filters = { status, search, created_by, created_after, created_before, limit, cursor, user_id };
       
       const response = await projectService.getProjectsByOrganization(req.user, filters);
       res.json(response);

@@ -2,7 +2,8 @@ const taskRepository = require('../repositories/taskRepository');
 const taskWorkflowRepository = require('../repositories/taskWorkflowRepository');
 const auditLogRepository = require('../repositories/auditLogRepository');
 const projectRepository = require('../repositories/projectRepository');
-
+const projectMemberRepository = require('../repositories/projectMemberRepository');
+const userRepository = require('../repositories/userRepository');
 class TaskService {
   async createTask(user, { project_id, title, description, priority, assigned_to, due_date }) {
     // Verify project access
@@ -21,7 +22,7 @@ class TaskService {
       title,
       description,
       priority,
-      assigned_to,
+      assigned_to: assigned_to || user.id,
       due_date
     });
 
@@ -47,17 +48,12 @@ class TaskService {
          if (!project || project.organization_id !== user.organization_id) {
              throw new Error('Access denied: Project not found or belongs to another organization');
          }
-         
-         // Member-specific check: They must be assigned to the project they are querying
-         if (user.role === 'member' && user.project_id !== filters.project_id) {
-             throw new Error('Access denied: You are not assigned to this project');
-         }
      }
-
-     // - Can only see assigned to them
      if (user.role === 'member') {
-         queryFilters.assigned_to = user.id;
-     }
+             queryFilters.assigned_to = user.id;
+         }
+
+
 
      const { decodeCursor, buildPaginationResponse } = require('../utils/pagination');
      

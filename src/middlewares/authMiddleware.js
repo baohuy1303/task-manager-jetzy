@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 
-const authenticate = (req, res, next) => {
+const userRepository = require('../repositories/userRepository');
+
+const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -11,7 +13,13 @@ const authenticate = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { id, role, organization_id }
+    
+    const user = await userRepository.findById(decoded.id);
+    if (!user || !user.is_active) {
+        return res.status(401).json({ success: false, error: 'User not found or deactivated' });
+    }
+    req.user = user;
+    
     next();
   } catch (error) {
     return res.status(401).json({ success: false, error: 'Invalid or expired token' });
