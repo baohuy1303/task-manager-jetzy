@@ -4,9 +4,11 @@ const auditLogRepository = require('../repositories/auditLogRepository');
 const projectRepository = require('../repositories/projectRepository');
 const projectMemberRepository = require('../repositories/projectMemberRepository');
 const userRepository = require('../repositories/userRepository');
+const { runTransaction } = require('../../config/db');
+
 class TaskService {
   async createTask(user, { project_id, title, description, priority, assigned_to, due_date }) {
-    // Verify project access
+    // Verify project access (Read-only, can be outside transaction or inside. Inside is safer for consistency)
     const project = await projectRepository.findById(project_id);
     if (!project) throw new Error('Project not found');
     if (project.organization_id !== user.organization_id) throw new Error('Access denied');
@@ -17,25 +19,27 @@ class TaskService {
       if (assignedUser.organization_id !== user.organization_id) throw new Error('Access denied');
     }
 
-    const task = await taskRepository.create({
-      project_id,
-      title,
-      description,
-      priority,
-      assigned_to: assigned_to || user.id,
-      due_date
-    });
+    return await runTransaction(async (client) => {
+        const task = await taskRepository.create({
+          project_id,
+          title,
+          description,
+          priority,
+          assigned_to: assigned_to || user.id,
+          due_date
+        }, client);
 
-    await auditLogRepository.create({
-      organization_id: user.organization_id,
-      entity_type: 'task',
-      entity_id: task.id,
-      action: 'create',
-      performed_by: user.id,
-      metadata: { title }
-    });
+        await auditLogRepository.create({
+          organization_id: user.organization_id,
+          entity_type: 'task',
+          entity_id: task.id,
+          action: 'create',
+          performed_by: user.id,
+          metadata: { title }
+        }, client);
 
-    return task;
+        return task;
+    });
   }
 
   async getTasks(user, filters = {}) {
@@ -85,30 +89,47 @@ class TaskService {
   }
 
   // Full Update (Admin/Manager)
-  async updateTask(user, id, updates) {
+  async updateTask(user, id, updates, expectedVersion) {
       const task = await taskRepository.findById(id);
+      const oldStatus = task.status;
       if (!task) throw new Error('Task not found');
 
       const project = await projectRepository.findById(task.project_id);
       if (project.organization_id !== user.organization_id) throw new Error('Access denied');
       if (project.status === 'archived') throw new Error('Cannot update tasks in an archived project');
 
-      const updatedTask = await taskRepository.update(id, updates);
+      return await runTransaction(async (client) => {
+          const updatedTask = await taskRepository.update(id, updates, expectedVersion, client);
+          
+          if (!updatedTask && expectedVersion !== undefined) {
+              // Check if failure was due to version mismatch or just not found (already handled)
+              throw new Error('Conflict: Task has been modified by another user');
+          }
 
-      // Audit Log
-      await auditLogRepository.create({
-        organization_id: user.organization_id,
-        entity_type: 'task',
-        entity_id: task.id,
-        action: 'update',
-        performed_by: user.id,
-        metadata: updates
+          if (updates.status) {
+            await taskWorkflowRepository.create({
+            task_id: id,
+            from_status: oldStatus,
+            to_status: updates.status,
+            changed_by: user.id
+        }, client);
+          }
+
+          // Audit Log
+          await auditLogRepository.create({
+            organization_id: user.organization_id,
+            entity_type: 'task',
+            entity_id: task.id,
+            action: 'update',
+            performed_by: user.id,
+            metadata: updates
+          }, client);
+
+          return updatedTask;
       });
-
-      return updatedTask;
   }
 
-  async updateTaskStatus(user, id, newStatus) {
+  async updateTaskStatus(user, id, newStatus, expectedVersion) {
     const task = await taskRepository.findById(id);
     if (!task) throw new Error('Task not found');
     
@@ -134,28 +155,33 @@ class TaskService {
         throw new Error(`Invalid status transition from ${oldStatus} to ${newStatus}`);
     }
 
-    const updatedTask = await taskRepository.updateStatus(id, newStatus);
+    return await runTransaction(async (client) => {
+        const updatedTask = await taskRepository.updateStatus(id, newStatus, expectedVersion, client);
 
+        if (!updatedTask && expectedVersion !== undefined) {
+             throw new Error('Conflict: Task has been modified by another user');
+        }
 
-    // Record History
-    await taskWorkflowRepository.create({
-        task_id: id,
-        from_status: oldStatus,
-        to_status: newStatus,
-        changed_by: user.id
+        // Record History
+        await taskWorkflowRepository.create({
+            task_id: id,
+            from_status: oldStatus,
+            to_status: newStatus,
+            changed_by: user.id
+        }, client);
+
+        // Audit Log
+        await auditLogRepository.create({
+          organization_id: user.organization_id,
+          entity_type: 'task',
+          entity_id: task.id,
+          action: 'update_status',
+          performed_by: user.id,
+          metadata: { from: oldStatus, to: newStatus }
+        }, client);
+
+        return updatedTask;
     });
-
-    // Audit Log
-    await auditLogRepository.create({
-      organization_id: user.organization_id,
-      entity_type: 'task',
-      entity_id: task.id,
-      action: 'update_status',
-      performed_by: user.id,
-      metadata: { from: oldStatus, to: newStatus }
-    });
-
-    return updatedTask;
   }
 
   async deleteTask(user, id) {
@@ -166,16 +192,18 @@ class TaskService {
     if (project.organization_id !== user.organization_id) throw new Error('Access denied');
     if (project.status === 'archived') throw new Error('Cannot delete tasks in an archived project');
 
-    await taskRepository.softDelete(id);
+    await runTransaction(async (client) => {
+        await taskRepository.softDelete(id, client);
 
-    // Audit Log
-    await auditLogRepository.create({
-        organization_id: user.organization_id,
-        entity_type: 'task',
-        entity_id: task.id,
-        action: 'delete',
-        performed_by: user.id,
-        metadata: { title: task.title }
+        // Audit Log
+        await auditLogRepository.create({
+            organization_id: user.organization_id,
+            entity_type: 'task',
+            entity_id: task.id,
+            action: 'delete',
+            performed_by: user.id,
+            metadata: { title: task.title }
+        }, client);
     });
   }
 }

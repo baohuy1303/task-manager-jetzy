@@ -1,24 +1,24 @@
 const { query } = require('../../config/db');
 
 class TaskRepository {
-  async create({ project_id, title, description, status, priority, assigned_to, due_date }) {
+  async create({ project_id, title, description, status, priority, assigned_to, due_date }, client) {
     const text = `
       INSERT INTO tasks (project_id, title, description, status, priority, assigned_to, due_date)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
     const values = [project_id, title, description, status || 'todo', priority || 'medium', assigned_to, due_date];
-    const { rows } = await query(text, values);
+    const { rows } = await (client ? client.query(text, values) : query(text, values));
     return rows[0];
   }
 
-  async findById(id) {
+  async findById(id, client) {
     const text = 'SELECT * FROM tasks WHERE id = $1 AND is_deleted = false';
-    const { rows } = await query(text, [id]);
+    const { rows } = await (client ? client.query(text, [id]) : query(text, [id]));
     return rows[0];
   }
 
-  async findAll({ organization_id, project_id, assigned_to, status, priority, due_before, due_after, is_deleted, limit = 50, cursor }) {
+  async findAll({ organization_id, project_id, assigned_to, status, priority, due_before, due_after, is_deleted, limit = 50, cursor }, client) {
     let text;
     let values;
     let paramIndex;
@@ -98,23 +98,31 @@ class TaskRepository {
     text += ` LIMIT $${paramIndex++}`;
     values.push(limit + 1);
 
-    const { rows } = await query(text, values);
+    const { rows } = await (client ? client.query(text, values) : query(text, values));
     return rows;
   }
 
-  async updateStatus(id, status) {
-    const text = 'UPDATE tasks SET status = $1 WHERE id = $2 AND is_deleted = false RETURNING *';
-    const { rows } = await query(text, [status, id]);
+  async updateStatus(id, status, expectedVersion, client) {
+    let text = 'UPDATE tasks SET status = $1, version = version + 1 WHERE id = $2 AND is_deleted = false';
+    const values = [status, id];
+    
+    if (expectedVersion !== undefined) {
+        text += ' AND version = $3';
+        values.push(expectedVersion);
+    }
+    
+    text += ' RETURNING *';
+    const { rows } = await (client ? client.query(text, values) : query(text, values));
     return rows[0];
   }
 
-  async softDelete(id) {
+  async softDelete(id, client) {
     const text = 'UPDATE tasks SET is_deleted = true WHERE id = $1 RETURNING *';
-    const { rows } = await query(text, [id]);
+    const { rows } = await (client ? client.query(text, [id]) : query(text, [id]));
     return rows[0];
   }
 
-  async reassignTasksToProjectCreator(details) {
+  async reassignTasksToProjectCreator(details, client) {
       if (details) {
           // Case 1: Reassign tasks for a deactivating user
           if (details.old_assigned_to) {
@@ -123,30 +131,38 @@ class TaskRepository {
                 // It does a join to find that creator.
                 const text = `
                     UPDATE tasks t
-                    SET assigned_to = p.created_by
+                    SET assigned_to = p.created_by, version = version + 1
                     FROM projects p
                     WHERE t.project_id = p.id
                     AND t.assigned_to = $1
                     AND t.is_deleted = false
                     RETURNING t.id, t.title, t.assigned_to
                 `;
-                const { rows } = await query(text, [details.old_assigned_to]);
+                const { rows } = await (client ? client.query(text, [details.old_assigned_to]) : query(text, [details.old_assigned_to]));
                 return rows;
           }
       }
       return [];
   }
 
-  async update(id, updates) {
+  async update(id, updates, expectedVersion, client) {
       // Dynamic update query builder
       const keys = Object.keys(updates);
-      if (keys.length === 0) return this.findById(id);
-
+      if (keys.length === 0) return this.findById(id, client);
+      
       const setClause = keys.map((key, index) => `${key} = $${index + 2}`).join(', ');
       const values = [id, ...Object.values(updates)];
+      let paramIndex = values.length + 1;
 
-      const text = `UPDATE tasks SET ${setClause} WHERE id = $1 AND is_deleted = false RETURNING *`;
-      const { rows } = await query(text, values);
+      let text = `UPDATE tasks SET ${setClause}, version = version + 1 WHERE id = $1 AND is_deleted = false`;
+      
+      if (expectedVersion !== undefined) {
+          text += ` AND version = $${paramIndex}`;
+          values.push(expectedVersion);
+      }
+
+      text += ' RETURNING *';
+      const { rows } = await (client ? client.query(text, values) : query(text, values));
       return rows[0];
   }
 }
