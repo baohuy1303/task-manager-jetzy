@@ -172,7 +172,8 @@ const processEmailJobs = () => {
             metadata: {
                 type,
                 error: error.message,
-                to: email || job.data.email
+                to: email || job.data.email,
+                request_id: job.data.request_id // Extract correlation ID from job data
             }
         });
       } catch (auditError) {

@@ -32,7 +32,7 @@ class AuthService {
     return { user, token };
   }
 
-  async register(name, email, password, organizationName) {
+  async register(name, email, password, organizationName, correlationId) {
     // 1. Check if user already exists (global email uniqueness)
     const existingUser = await userRepository.findByEmail(email);
     if (existingUser) {
@@ -70,7 +70,8 @@ class AuthService {
         performed_by: user.id,
         metadata: { 
           org_name: organizationName,
-          email: email
+          email: email,
+          request_id: correlationId
         }
       }, client);
 

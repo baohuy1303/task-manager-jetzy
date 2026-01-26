@@ -8,7 +8,7 @@ const { runTransaction } = require('../../config/db');
 const notificationService = require('./notificationService');
 
 class TaskService {
-  async createTask(user, { project_id, title, description, priority, assigned_to, due_date }) {
+  async createTask(user, { project_id, title, description, priority, assigned_to, due_date }, correlationId) {
     // Verify project access (Read-only, can be outside transaction or inside. Inside is safer for consistency)
     const project = await projectRepository.findById(project_id);
     if (!project) throw new Error('Project not found');
@@ -36,14 +36,17 @@ class TaskService {
           entity_id: task.id,
           action: 'create',
           performed_by: user.id,
-          metadata: { title }
+          metadata: { 
+            title,
+            request_id: correlationId
+          }
         }, client);
 
         return task;
     });
 
     if (assigned_to) {
-        notificationService.notifyAssignee(result.id, title, assigned_to, user.id);
+        notificationService.notifyAssignee(result.id, title, assigned_to, user.id, correlationId);
     }
 
     return result;
@@ -96,7 +99,7 @@ class TaskService {
   }
 
   // Full Update (Admin/Manager)
-  async updateTask(user, id, updates, expectedVersion) {
+  async updateTask(user, id, updates, expectedVersion, correlationId) {
       const task = await taskRepository.findById(id);
       const oldStatus = task.status;
       if (!task) throw new Error('Task not found');
@@ -129,14 +132,14 @@ class TaskService {
             entity_id: task.id,
             action: 'update',
             performed_by: user.id,
-            metadata: updates
+            metadata: Object.assign({}, updates, { request_id: correlationId })
           }, client);
 
           return updatedTask;
       });
   }
 
-  async updateTaskStatus(user, id, newStatus, expectedVersion) {
+  async updateTaskStatus(user, id, newStatus, expectedVersion, correlationId) {
     const task = await taskRepository.findById(id);
     if (!task) throw new Error('Task not found');
     
@@ -184,7 +187,11 @@ class TaskService {
           entity_id: task.id,
           action: 'update_status',
           performed_by: user.id,
-          metadata: { from: oldStatus, to: newStatus }
+          metadata: { 
+            from: oldStatus, 
+            to: newStatus,
+            request_id: correlationId
+          }
         }, client);
 
         return updatedTask;
@@ -192,13 +199,13 @@ class TaskService {
 
     // Post-Transaction Notifications
     if (oldStatus === 'review' && newStatus === 'done') {
-        notificationService.notifyManagers(id, task.title, task.project_id, user.id);
+        notificationService.notifyManagers(id, task.title, task.project_id, user.id, correlationId);
     }
     
     return result;
   }
 
-  async deleteTask(user, id) {
+  async deleteTask(user, id, correlationId) {
     const task = await taskRepository.findById(id);
     if (!task) throw new Error('Task not found');
 
@@ -216,7 +223,10 @@ class TaskService {
             entity_id: task.id,
             action: 'delete',
             performed_by: user.id,
-            metadata: { title: task.title }
+            metadata: { 
+              title: task.title,
+              request_id: correlationId
+            }
         }, client);
     });
   }

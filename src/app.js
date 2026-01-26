@@ -3,13 +3,20 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const errorHandler = require('./middlewares/errorHandler');
+const correlationMiddleware = require('./middlewares/correlationMiddleware');
 
 const app = express();
+
+// Correlation ID must be first (before logger)
+app.use(correlationMiddleware);
+
+// Configure morgan to include correlation ID
+morgan.token('correlation-id', (req) => req.correlationId || 'none');
 
 // Middleware
 app.use(helmet());
 app.use(cors());
-app.use(morgan('dev'));
+app.use(morgan('[:correlation-id] :method :url :status - :response-time ms'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

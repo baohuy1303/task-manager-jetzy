@@ -4,7 +4,7 @@ class ProjectController {
   async create(req, res, next) {
     try {
       const { name, description, status } = req.body;
-      const project = await projectService.createProject(req.user, { name, description, status });
+      const project = await projectService.createProject(req.user, { name, description, status }, req.correlationId);
       res.status(201).json({ success: true, data: project });
     } catch (error) {
       next(error);
@@ -36,7 +36,7 @@ class ProjectController {
 
     async update(req, res, next) {
     try {
-      const project = await projectService.updateProject(req.user, req.params.id, req.body);
+      const project = await projectService.updateProject(req.user, req.params.id, req.body, req.correlationId);
       res.json({ success: true, data: project });
     } catch (error) {
       next(error);

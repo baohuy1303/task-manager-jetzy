@@ -46,7 +46,7 @@ class OrganizationService {
     return org;
   }
 
-  async suspendOrganization(user, id) {
+  async suspendOrganization(user, id, correlationId) {
     const org = await this.getOrganizationById(user, id);
     if (!org) throw new Error('Organization not found');
     if (user.role !== 'admin' || user.organization_id !== id) throw new Error('Access denied');
@@ -63,14 +63,17 @@ class OrganizationService {
         entity_id: id,
         action: 'org_suspended',
         performed_by: user.id,
-        metadata: { previous_status: org.status }
+        metadata: { 
+          previous_status: org.status,
+          request_id: correlationId
+        }
       }, client);
 
       return result;
     });
   }
 
-  async activateOrganization(user, id) {
+  async activateOrganization(user, id, correlationId) {
     const org = await this.getOrganizationById(user, id);
     if (!org) throw new Error('Organization not found');
     if (user.role !== 'admin' && user.organization_id !== id) throw new Error('Access denied');
@@ -87,7 +90,10 @@ class OrganizationService {
         entity_id: id,
         action: 'org_activated',
         performed_by: user.id,
-        metadata: { previous_status: org.status }
+        metadata: { 
+          previous_status: org.status,
+          request_id: correlationId
+        }
       }, client);
 
       return result;

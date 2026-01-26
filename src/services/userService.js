@@ -7,7 +7,7 @@ const auditLogRepository = require('../repositories/auditLogRepository');
 const { runTransaction } = require('../../config/db');
 
 class UserService {
-  async deactivateUser(adminUser, targetUserId) {
+  async deactivateUser(adminUser, targetUserId, correlationId) {
     // 1. Verify Permission (Admin only)
     if (adminUser.role !== 'admin') {
         throw new Error('Access denied: Only admins can deactivate users');
@@ -32,7 +32,10 @@ class UserService {
               entity_id: targetUserId,
               action: 'deactivate',
               performed_by: adminUser.id,
-              metadata: { unassigned_tasks: unassignedTasks.length }
+              metadata: { 
+                unassigned_tasks: unassignedTasks.length,
+                request_id: correlationId
+              }
         }, client);
 
         return {
@@ -50,7 +53,7 @@ class UserService {
     };
     }
     const notificationService = require('./notificationService');
-    notificationService.notifyDeactivation(result.user, result.unassignedTasks, adminUser.id).catch(err => {
+    notificationService.notifyDeactivation(result.user, result.unassignedTasks, adminUser.id, correlationId).catch(err => {
          console.error('[UserService] Failed to queue deactivation notifications:', err);
     });
 
@@ -60,7 +63,7 @@ class UserService {
     };
   }
 
-  async reactivateUser(adminUser, targetUserId) {
+  async reactivateUser(adminUser, targetUserId, correlationId) {
       if (adminUser.role !== 'admin') {
           throw new Error('Access denied: Only admins can reactivate users');
       }
@@ -79,7 +82,7 @@ class UserService {
               entity_id: targetUserId,
               action: 'activate',
               performed_by: adminUser.id,
-              metadata: {}
+              metadata: { request_id: correlationId }
           }, client);
           
           return activatedUser;
@@ -87,7 +90,7 @@ class UserService {
   }
 
   
-  async createUser(creatorUser, { organization_id, name, email, password, role }) {
+  async createUser(creatorUser, { organization_id, name, email, password, role }, correlationId) {
     // 1. Validate that organization_id is provided (required)
     if (!organization_id) {
       throw new Error('Organization ID is required');
@@ -135,7 +138,8 @@ class UserService {
         performed_by: creatorUser.id,
         metadata: { 
           role,
-          email: email
+          email: email,
+          request_id: correlationId
         }
       }, client);
 
@@ -143,7 +147,7 @@ class UserService {
     });
   }
 
-  async updateUser(requestingUser, targetUserId, updates) {
+  async updateUser(requestingUser, targetUserId, updates, correlationId) {
       // 1. Fetch Target User
       const targetUser = await this.getUserById(targetUserId);
       if (targetUser.organization_id !== requestingUser.organization_id) {
@@ -207,7 +211,7 @@ class UserService {
               entity_id: targetUserId,
               action: action,
               performed_by: requestingUser.id,
-              metadata: metadata
+              metadata: Object.assign({}, metadata, { request_id: correlationId })
           }, client);
 
           return updatedUser;
@@ -226,7 +230,7 @@ class UserService {
      return await userRepository.updateOrganization(id, organization_id);
   }*/
 
-  async assignProject(adminUser, userId, projectId, action = 'assign') {
+  async assignProject(adminUser, userId, projectId, action = 'assign', correlationId) {
       const targetUser = await this.getUserById(userId);
       
       // Permission Check: Manager can ONLY assign to Members
@@ -259,7 +263,10 @@ class UserService {
                     entity_id: userId,
                     action: 'remove_project',
                     performed_by: adminUser.id,
-                    metadata: { project_id: projectId }
+                    metadata: { 
+                      project_id: projectId,
+                      request_id: correlationId
+                    }
                 }, client);
                 
                 return result;
@@ -278,7 +285,10 @@ class UserService {
                     entity_id: userId,
                     action: 'assign_project',
                     performed_by: adminUser.id,
-                    metadata: { project_id: projectId }
+                    metadata: { 
+                      project_id: projectId,
+                      request_id: correlationId
+                    }
                 }, client);
                 
                 return result;

@@ -3,7 +3,7 @@ const taskService = require('../services/taskService');
 class TaskController {
   async create(req, res, next) {
     try {
-      const task = await taskService.createTask(req.user, req.body);
+      const task = await taskService.createTask(req.user, req.body, req.correlationId);
       res.status(201).json({ success: true, data: task });
     } catch (error) {
       if (error.message === 'Project not found') return res.status(404).json({ success: false, error: 'Project not found' });
@@ -38,7 +38,7 @@ class TaskController {
     try {
       const { id } = req.params;
       const { version, ...updates } = req.body; // Extract version
-      const task = await taskService.updateTask(req.user, id, updates, version);
+      const task = await taskService.updateTask(req.user, id, updates, version, req.correlationId);
       res.json({ success: true, data: task });
     } catch (error) {
        if (error.message === 'Task not found') return res.status(404).json({ success: false, error: error.message });
@@ -52,7 +52,7 @@ class TaskController {
     try {
       const { id } = req.params;
       const { status, version } = req.body; // Extract version
-      const task = await taskService.updateTaskStatus(req.user, id, status, version);
+      const task = await taskService.updateTaskStatus(req.user, id, status, version, req.correlationId);
       res.json({ success: true, data: task });
     } catch (error) {
         if (error.message.startsWith('Invalid status transition')) {
@@ -66,7 +66,7 @@ class TaskController {
   async delete(req, res, next) {
     try {
       const { id } = req.params;
-      await taskService.deleteTask(req.user, id);
+      await taskService.deleteTask(req.user, id, req.correlationId);
       res.json({ success: true, message: 'Task deleted successfully' });
     } catch (error) {
       if (error.message === 'Task not found') {

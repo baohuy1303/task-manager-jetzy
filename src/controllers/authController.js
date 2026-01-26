@@ -35,7 +35,7 @@ class AuthController {
       }
 
       const { user, organization, token } = await authService.register(
-        name, email, password, organization_name
+        name, email, password, organization_name, req.correlationId
       );
       
       // Don't send password_hash back

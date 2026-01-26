@@ -31,7 +31,7 @@ class OrganizationController {
   async suspend(req, res, next) {
     try {
       const { id } = req.params;
-      const org = await organizationService.suspendOrganization(req.user, id);
+      const org = await organizationService.suspendOrganization(req.user, id, req.correlationId);
       res.json({ success: true, message: 'Organization suspended', data: org });
     } catch (error) {
         if (error.message === 'Organization not found') {
@@ -44,7 +44,7 @@ class OrganizationController {
   async activate(req, res, next) {
     try {
       const { id } = req.params;
-      const org = await organizationService.activateOrganization(req.user, id);
+      const org = await organizationService.activateOrganization(req.user, id, req.correlationId);
       res.json({ success: true, message: 'Organization activated', data: org });
     } catch (error) {
         if (error.message === 'Organization not found') {

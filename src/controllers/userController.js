@@ -4,7 +4,7 @@ class UserController {
   async create(req, res, next) {
     try {
       const { organization_id, name, email, password, role } = req.body;
-      const user = await userService.createUser(req.user, { organization_id, name, email, password, role });
+      const user = await userService.createUser(req.user, { organization_id, name, email, password, role }, req.correlationId);
       res.status(201).json({ success: true, data: user });
     } catch (error) {
       if (error.message === 'Email already exists') {
@@ -24,7 +24,7 @@ class UserController {
     try {
       const { id } = req.params;
       const updates = req.body;
-      const user = await userService.updateUser(req.user, id, updates);
+      const user = await userService.updateUser(req.user, id, updates, req.correlationId);
       res.json({ success: true, data: user });
     } catch (error) {
        if (error.message.startsWith('Access denied')) {
@@ -76,7 +76,7 @@ class UserController {
   async deactivate(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await userService.deactivateUser(req.user, id);
+      const result = await userService.deactivateUser(req.user, id, req.correlationId);
       res.json({ success: true, data: result });
     } catch (error) {
       if (error.message.startsWith('Access denied')) {
@@ -92,7 +92,7 @@ class UserController {
   async activate(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await userService.reactivateUser(req.user, id);
+      const result = await userService.reactivateUser(req.user, id, req.correlationId);
       res.json({ success: true, data: result });
     } catch (error) {
       if (error.message.startsWith('Access denied')) {
@@ -109,7 +109,7 @@ class UserController {
     try {
       const { id } = req.params;
       const { project_id, action } = req.body;
-      const updated = await userService.assignProject(req.user, id, project_id, action);
+      const updated = await userService.assignProject(req.user, id, project_id, action, req.correlationId);
       res.json({ success: true, data: updated });
     } catch (error) {
       if (error.message === 'Project not found') {

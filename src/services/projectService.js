@@ -5,7 +5,7 @@ const projectMemberRepository = require('../repositories/projectMemberRepository
 const { runTransaction } = require('../../config/db');
 
 class ProjectService {
-  async createProject(user, { name, description, status }) {
+  async createProject(user, { name, description, status }, correlationId) {
     if (!user.organization_id) throw new Error('User must be part of an organization to create projects');
     
     // 1. Check for duplicates
@@ -30,7 +30,10 @@ class ProjectService {
           entity_id: project.id,
           action: 'create',
           performed_by: user.id,
-          metadata: { name }
+          metadata: { 
+            name,
+            request_id: correlationId
+          }
         }, client);
 
         return project;
@@ -103,7 +106,7 @@ class ProjectService {
     return project;
   }
 
-  async updateProject(user, id, updates) {
+  async updateProject(user, id, updates, correlationId) {
     const project = await projectRepository.findById(id);
     if (!project) throw new Error('Project not found');
     if (updates.name) {
@@ -129,7 +132,7 @@ class ProjectService {
           entity_id: id,
           action: 'update',
           performed_by: user.id,
-          metadata: updates
+          metadata: Object.assign({}, updates, { request_id: correlationId })
         }, client);
 
         return updatedProject;

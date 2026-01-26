@@ -4,7 +4,7 @@ const userRepository = require('../repositories/userRepository');
 const emailQueue = require('../queues/emailQueue');
 
 class NotificationService {
-    async notifyAssignee(taskId, taskTitle, assignedToId, performedById) {
+    async notifyAssignee(taskId, taskTitle, assignedToId, performedById, correlationId) {
         if (!assignedToId) return;
 
         try {
@@ -29,6 +29,7 @@ class NotificationService {
                 type: 'TASK_ASSIGNED',
                 email: user.email,
                 organization_id: user.organization_id, // For auditing
+                request_id: correlationId, // For correlation
                 taskTitle: taskTitle,
                 taskId: taskId,
                 performedByName: performedByName,
@@ -41,7 +42,7 @@ class NotificationService {
         }
     }
 
-    async notifyManagers(taskId, taskTitle, projectId, performedById) {
+    async notifyManagers(taskId, taskTitle, projectId, performedById, correlationId) {
         try {
             const project = await projectRepository.findById(projectId);
             if (!project) return;
@@ -70,6 +71,7 @@ class NotificationService {
                     type: 'TASK_COMPLETED',
                     email: recipient.email,
                     organization_id: project.organization_id, // For auditing
+                    request_id: correlationId, // For correlation
                     taskTitle: taskTitle,
                     taskId: taskId,
                     performedByName: performedByName,
@@ -87,7 +89,7 @@ class NotificationService {
         }
     }
 
-    async notifyDeactivation(deactivatedUser, unassignedTasks, performedById) {
+    async notifyDeactivation(deactivatedUser, unassignedTasks, performedById, correlationId) {
         console.log(`[Notification] notifyDeactivation called for ${deactivatedUser?.email} (${deactivatedUser?.role})`);
         if (!deactivatedUser) {
             console.log('[Notification] Aborting: No deactivatedUser provided.');
@@ -130,6 +132,7 @@ class NotificationService {
                         type: 'USER_DEACTIVATED',
                         email: admin.email,
                         organization_id: admin.organization_id, // For auditing
+                        request_id: correlationId, // For correlation
                         managerName: admin.name, // "Manager Name" implies recipient name in email template
                         deactivatedUserName: deactivatedUser.name,
                         deactivatedUserRole: role,
@@ -174,6 +177,7 @@ class NotificationService {
                                 type: 'USER_DEACTIVATED',
                                 email: manager.email,
                                 organization_id: deactivatedUser.organization_id, // For auditing
+                                request_id: correlationId, // For correlation
                                 managerName: manager.name,
                                 deactivatedUserName: deactivatedUser.name,
                                 deactivatedUserRole: role,
