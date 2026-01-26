@@ -17,6 +17,23 @@ class UserController {
       next(error);
     }
   }
+  
+  async update(req, res, next) {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const user = await userService.updateUser(req.user, id, updates);
+      res.json({ success: true, data: user });
+    } catch (error) {
+       if (error.message.startsWith('Access denied')) {
+        return res.status(403).json({ success: false, error: error.message });
+      }
+      if (error.message === 'User not found') {
+        return res.status(404).json({ success: false, error: error.message });
+      }
+      next(error);
+    }
+  }
 
   async getById(req, res, next) {
     try {

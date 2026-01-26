@@ -12,6 +12,22 @@ class UserRepository {
     return rows[0];
   }
 
+  async update(id, updates, client) {
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return this.findById(id);
+
+    const allowedUpdates = keys.filter(key => !['id', 'organization_id', 'created_at'].includes(key));
+    if (allowedUpdates.length === 0) return this.findById(id);
+
+    const setClause = allowedUpdates.map((key, index) => `${key} = $${index + 2}`).join(', ');
+    const values = [id, ...allowedUpdates.map(key => updates[key])];
+    
+    const text = `UPDATE users SET ${setClause} WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at`;
+    
+    const { rows } = await (client ? client.query(text, values) : query(text, values));
+    return rows[0];
+  }
+
   async findByEmail(email) {
     const text = 'SELECT * FROM users WHERE email = $1';
     const { rows } = await query(text, [email]);
@@ -73,27 +89,27 @@ class UserRepository {
      return rows;
   }
 
-  async updateOrganization(id, organization_id) {
+  async updateOrganization(id, organization_id, client) {
     const text = 'UPDATE users SET organization_id = $2 WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at';
-    const { rows } = await query(text, [id, organization_id]);
+    const { rows } = await (client ? client.query(text, [id, organization_id]) : query(text, [id, organization_id]));
     return rows[0];
   }
 
-  async updateProject(id, project_id) {
+  async updateProject(id, project_id, client) {
     const text = 'UPDATE users SET project_id = $2 WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at';
-    const { rows } = await query(text, [id, project_id]);
+    const { rows } = await (client ? client.query(text, [id, project_id]) : query(text, [id, project_id]));
     return rows[0];
   }
 
-  async deactivate(id) {
+  async deactivate(id, client) {
     const text = 'UPDATE users SET is_active = false WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at';
-    const { rows } = await query(text, [id]);
+    const { rows } = await (client ? client.query(text, [id]) : query(text, [id]));
     return rows[0];
   }
 
-  async activate(id) {
+  async activate(id, client) {
     const text = 'UPDATE users SET is_active = true WHERE id = $1 RETURNING id, organization_id, name, email, role, is_active, created_at';
-    const { rows } = await query(text, [id]);
+    const { rows } = await (client ? client.query(text, [id]) : query(text, [id]));
     return rows[0];
   }
 }

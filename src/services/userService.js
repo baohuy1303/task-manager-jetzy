@@ -3,6 +3,8 @@ const organizationService = require('./organizationService');
 const taskRepository = require('../repositories/taskRepository');
 const bcrypt = require('bcrypt');
 const projectMemberRepository = require('../repositories/projectMemberRepository');
+const auditLogRepository = require('../repositories/auditLogRepository');
+const { runTransaction } = require('../../config/db');
 
 class UserService {
   async deactivateUser(adminUser, targetUserId) {
@@ -17,17 +19,26 @@ class UserService {
         throw new Error('Access denied: User is in different organization');
     }
 
-    // 3. Deactivate User
-    const deactivatedUser = await userRepository.deactivate(targetUserId);
+    // 3. Deactivate User & Reassign Tasks (Transactional)
+    return await runTransaction(async (client) => {
+        const deactivatedUser = await userRepository.deactivate(targetUserId, client);
 
-    // 4. Reassign Tasks
-    // Logic: Tasks assigned to this user are moved to the creator of their respective projects.
-    const reassignedTasks = await taskRepository.reassignTasksToProjectCreator({ old_assigned_to: targetUserId });
+        const reassignedTasks = await taskRepository.reassignTasksToProjectCreator({ old_assigned_to: targetUserId }, client);
+        
+        await auditLogRepository.create({
+              organization_id: adminUser.organization_id,
+              entity_type: 'user',
+              entity_id: targetUserId,
+              action: 'deactivate',
+              performed_by: adminUser.id,
+              metadata: { reassigned_tasks: reassignedTasks.length }
+        }, client);
 
-    return {
-        user: deactivatedUser,
-        reassignedTasksCount: reassignedTasks.length
-    };
+        return {
+            user: deactivatedUser,
+            reassignedTasksCount: reassignedTasks.length
+        };
+    });
   }
 
   async reactivateUser(adminUser, targetUserId) {
@@ -40,7 +51,20 @@ class UserService {
           throw new Error('Access denied: User is in different organization');
       }
 
-      return await userRepository.activate(targetUserId);
+      return await runTransaction(async (client) => {
+          const activatedUser = await userRepository.activate(targetUserId, client);
+          
+           await auditLogRepository.create({
+              organization_id: adminUser.organization_id,
+              entity_type: 'user',
+              entity_id: targetUserId,
+              action: 'activate',
+              performed_by: adminUser.id,
+              metadata: {}
+          }, client);
+          
+          return activatedUser;
+      });
   }
 
   
@@ -73,6 +97,71 @@ class UserService {
     return user;
   }
 
+  async updateUser(requestingUser, targetUserId, updates) {
+      // 1. Fetch Target User
+      const targetUser = await this.getUserById(targetUserId);
+      if (targetUser.organization_id !== requestingUser.organization_id) {
+          throw new Error('Access denied: User is in different organization');
+      }
+
+      // 2. Permission Logic
+      const isSelf = requestingUser.id === targetUserId;
+      const isAdmin = requestingUser.role === 'admin';
+
+      if (!isSelf && !isAdmin) {
+          // Managers and Members cannot update others
+          throw new Error('Access denied: You cannot update other users');
+      }
+
+      if (isSelf && !isAdmin) {
+          // Self update restrictions
+          if (updates.role) {
+              throw new Error('Access denied: You cannot allow to update your own role');
+          }
+          if (updates.is_active !== undefined || updates.organization_id) {
+               throw new Error('Access denied: restricted fields');
+          }
+      }
+
+      // 3. Prepare Updates
+      const cleanUpdates = { ...updates };
+      // Prevent accidental Org update via this route (use specific route for that)
+      delete cleanUpdates.organization_id; 
+      delete cleanUpdates.id;
+
+      if (cleanUpdates.password) {
+          const salt = await bcrypt.genSalt(10);
+          const pepper = process.env.PEPPER;
+          cleanUpdates.password_hash = await bcrypt.hash(cleanUpdates.password + pepper, salt);
+          delete cleanUpdates.password;
+      }
+
+      // 4. Update (Transactional Audit)
+      return await runTransaction(async (client) => {
+          const oldRole = targetUser.role;
+          const updatedUser = await userRepository.update(targetUserId, cleanUpdates, client); 
+          
+          let action = 'update';
+          let metadata = Object.keys(updates);
+          
+          if (cleanUpdates.role && cleanUpdates.role !== oldRole) {
+              action = 'role_change';
+              metadata = { from: oldRole, to: cleanUpdates.role };
+          }
+
+          await auditLogRepository.create({
+              organization_id: requestingUser.organization_id,
+              entity_type: 'user',
+              entity_id: targetUserId,
+              action: action,
+              performed_by: requestingUser.id,
+              metadata: metadata
+          }, client);
+
+          return updatedUser;
+      });
+  }
+
   async updateUserOrganization(id, organization_id) {
      if (!organization_id) throw new Error('Organization ID required');
      // Verify Org exists
@@ -87,9 +176,12 @@ class UserService {
 
   async assignProject(adminUser, userId, projectId, action = 'assign') {
       const targetUser = await this.getUserById(userId);
-      if (adminUser.role === 'manager' && targetUser.role === 'manager') {
-          throw new Error('Access denied: Managers cannot assign themselves to projects');
+      
+      // Permission Check: Manager can ONLY assign to Members
+      if (adminUser.role === 'manager' && targetUser.role !== 'member') {
+          throw new Error('Access denied: Managers can only assign projects to members');
       }
+      
       if (targetUser.role === 'admin') throw new Error('Admins cannot be assigned to projects');
       if (adminUser.organization_id !== targetUser.organization_id) throw new Error('Access denied: User is in different organization');
       
@@ -99,17 +191,44 @@ class UserService {
           const project = await projectRepo.findById(projectId);
           if (!project) throw new Error('Project not found');
           if (project.organization_id !== adminUser.organization_id) throw new Error('Access denied: Project is in different organization');
-          const alreadyHasProject = await projectMemberRepository.findProjectsByUser(userId);
-          if (action === 'remove') {
-            if (alreadyHasProject.length === 0) {
-                throw new Error('User does not have a project assigned');
-            }
-              return await projectMemberRepository.removeMember(projectId, userId);
-          }
-          if (alreadyHasProject.length > 0) {
-              throw new Error('User already has a project assigned, remove the old one, and reassign');
-          }
-          return await projectMemberRepository.addMember(projectId, userId);
+          
+          return await runTransaction(async (client) => {
+              const alreadyHasProject = await projectMemberRepository.findProjectsByUser(userId); // Read can optionally be outside tx, but inside is fine
+              
+              if (action === 'remove') {
+                if (alreadyHasProject.length === 0) {
+                    throw new Error('User does not have a project assigned');
+                }
+                const result = await projectMemberRepository.removeMember(projectId, userId, client);
+                
+                await auditLogRepository.create({
+                    organization_id: adminUser.organization_id,
+                    entity_type: 'user',
+                    entity_id: userId,
+                    action: 'remove_project',
+                    performed_by: adminUser.id,
+                    metadata: { project_id: projectId }
+                }, client);
+                
+                return result;
+              }
+              
+              if (alreadyHasProject.length > 0) {
+                  throw new Error('User already has a project assigned, remove the old one, and reassign');
+              }
+              const result = await projectMemberRepository.addMember(projectId, userId, client);
+              
+               await auditLogRepository.create({
+                    organization_id: adminUser.organization_id,
+                    entity_type: 'user',
+                    entity_id: userId,
+                    action: 'assign_project',
+                    performed_by: adminUser.id,
+                    metadata: { project_id: projectId }
+                }, client);
+                
+                return result;
+          });
       }
       return null;
   }

@@ -21,6 +21,12 @@ const userSchema = {
     password: Joi.string().min(6).required(),
     role: Joi.string().valid('admin', 'manager', 'member').required(),
   }),
+  update: Joi.object({
+      name: Joi.string().min(2).optional(),
+      email: Joi.string().email().optional(),
+      password: Joi.string().min(6).optional(),
+      role: Joi.string().valid('admin', 'manager', 'member').optional(),
+  }),
 };
 
 const projectSchema = {

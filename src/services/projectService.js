@@ -2,6 +2,7 @@ const projectRepository = require('../repositories/projectRepository');
 const taskRepository = require('../repositories/taskRepository');
 const auditLogRepository = require('../repositories/auditLogRepository');
 const projectMemberRepository = require('../repositories/projectMemberRepository');
+const { runTransaction } = require('../../config/db');
 
 class ProjectService {
   async createProject(user, { name, description, status }) {
@@ -13,26 +14,29 @@ class ProjectService {
         throw new Error('You have already created a project with this name');
     }
 
-    // 2. Create Project
-    const project = await projectRepository.create({
-      organization_id: user.organization_id,
-      name,
-      description,
-      status: status || 'draft',
-      created_by: user.id
+    // 2. Create Project (Transactional Audit)
+    return await runTransaction(async (client) => {
+        const project = await projectRepository.create({
+          organization_id: user.organization_id,
+          name,
+          description,
+          status: status || 'draft',
+          created_by: user.id
+        }, client);
+
+        await auditLogRepository.create({
+          organization_id: user.organization_id,
+          entity_type: 'project',
+          entity_id: project.id,
+          action: 'create',
+          performed_by: user.id,
+          metadata: { name }
+        }, client);
+
+        return project;
     });
 
-    // 2. Audit Log
-    await auditLogRepository.create({
-      organization_id: user.organization_id,
-      entity_type: 'project',
-      entity_id: project.id,
-      action: 'create',
-      performed_by: user.id,
-      metadata: { name }
-    });
-
-    return project;
+    
   }
 
   async getProjectsByOrganization(user, filters = {}) {
@@ -65,9 +69,9 @@ class ProjectService {
                 ...filters, 
                 limit, 
                 cursor 
-            });
-        }
-        
+    });
+  }
+
         return buildPaginationResponse(projects, limit, (item) => ({
             sortValue: item.created_at, // or assigned_at if filtered by user? 
             id: item.id
@@ -104,7 +108,7 @@ class ProjectService {
     if (!project) throw new Error('Project not found');
     if (updates.name) {
         const existingProject = await projectRepository.findByNameAndCreator(updates.name, user.id);
-        if (existingProject) {
+        if (existingProject && existingProject.id !== id) {
             throw new Error('You have already created a project with this name');
         }
     }
@@ -115,17 +119,21 @@ class ProjectService {
         throw new Error('Cannot modify an archived project');
     }
 
-    // Audit Log before update
-    await auditLogRepository.create({
-      organization_id: user.organization_id,
-      entity_type: 'project',
-      entity_id: id,
-      action: 'update',
-      performed_by: user.id,
-      metadata: updates
-    });
+    // Transactional Update & Audit
+    return await runTransaction(async (client) => {
+        const updatedProject = await projectRepository.update(id, updates, client);
+        
+        await auditLogRepository.create({
+          organization_id: user.organization_id,
+          entity_type: 'project',
+          entity_id: id,
+          action: 'update',
+          performed_by: user.id,
+          metadata: updates
+        }, client);
 
-    return await projectRepository.update(id, updates);
+        return updatedProject;
+    });
   }
 }
 

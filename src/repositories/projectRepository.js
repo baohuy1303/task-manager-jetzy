@@ -1,14 +1,14 @@
 const { query } = require('../../config/db');
 
 class ProjectRepository {
-  async create({ organization_id, name, description, status, created_by }) {
+  async create({ organization_id, name, description, status, created_by }, client) {
     const text = `
       INSERT INTO projects (organization_id, name, description, status, created_by)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
     const values = [organization_id, name, description, status || 'draft', created_by];
-    const { rows } = await query(text, values);
+    const { rows } = await (client ? client.query(text, values) : query(text, values));
     return rows[0];
   }
 
@@ -72,7 +72,7 @@ class ProjectRepository {
     return rows;
   }
 
-  async update(id, { name, description, status }) {
+  async update(id, { name, description, status }, client) {
     const text = `
       UPDATE projects 
       SET name = COALESCE($2, name), 
@@ -82,7 +82,7 @@ class ProjectRepository {
       RETURNING *
     `;
     const values = [id, name, description, status];
-    const { rows } = await query(text, values);
+    const { rows } = await (client ? client.query(text, values) : query(text, values));
     return rows[0];
   }
 }

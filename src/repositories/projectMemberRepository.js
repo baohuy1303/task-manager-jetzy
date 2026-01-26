@@ -1,20 +1,20 @@
 const { query } = require('../../config/db');
 
 class ProjectMemberRepository {
-  async addMember(projectId, userId) {
+  async addMember(projectId, userId, client) {
     const text = `
       INSERT INTO project_members (project_id, user_id)
       VALUES ($1, $2)
       ON CONFLICT (user_id, project_id) DO NOTHING
       RETURNING *
     `;
-    const { rows } = await query(text, [projectId, userId]);
+    const { rows } = await (client ? client.query(text, [projectId, userId]) : query(text, [projectId, userId]));
     return rows[0];
   }
 
-  async removeMember(projectId, userId) {
+  async removeMember(projectId, userId, client) {
     const text = 'DELETE FROM project_members WHERE project_id = $1 AND user_id = $2 RETURNING *';
-    const { rows } = await query(text, [projectId, userId]);
+    const { rows } = await (client ? client.query(text, [projectId, userId]) : query(text, [projectId, userId]));
     return rows[0];
   }
 
