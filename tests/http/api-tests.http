@@ -1,0 +1,290 @@
+### ===============================================================
+### SETUP
+### ===============================================================
+
+@baseUrl = http://localhost:3000/api/v1
+
+### ===============================================================
+### AUTHENTICATION - Get Tokens
+### ===============================================================
+
+### Login as Admin (Org 1)
+# @name loginAdmin1
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin-1@org1.com",
+  "password": "password123"
+}
+
+###
+@token = {{loginAdmin1.response.body.data.token}}
+@org1Id = {{loginAdmin1.response.body.data.user.organization_id}}
+@adminId = {{loginAdmin1.response.body.data.user.id}}
+
+### Login as Manager (Org 1)
+# @name loginManager1
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager-1@org1.com",
+  "password": "password123"
+}
+
+###
+@managerToken = {{loginManager1.response.body.data.token}}
+
+### Login as Member (Org 1)
+# @name loginMember1
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "member-1@org1.com",
+  "password": "password123"
+}
+
+###
+@memberToken = {{loginMember1.response.body.data.token}}
+
+### ===============================================================
+### USERS - Query & Pagination
+### ===============================================================
+
+### Get all users - Page 1
+# @name usersPage1
+GET {{baseUrl}}/users?limit=20
+Authorization: Bearer {{token}}
+
+###
+@usersCursor1 = {{usersPage1.response.body.meta.next_cursor}}
+
+### Users - Page 2
+# @name usersPage2
+GET {{baseUrl}}/users?limit=20&cursor={{usersCursor1}}
+Authorization: Bearer {{token}}
+
+###
+@usersCursor2 = {{usersPage2.response.body.meta.next_cursor}}
+
+### Users - Page 3
+GET {{baseUrl}}/users?limit=20&cursor={{usersCursor2}}
+Authorization: Bearer {{token}}
+
+###
+
+### Filter: Active managers (combined filter)
+GET {{baseUrl}}/users?role=manager&is_active=true&limit=30
+Authorization: Bearer {{token}}
+
+###
+
+### Get specific user by ID
+GET {{baseUrl}}/users/{{adminId}}
+Authorization: Bearer {{token}}
+
+### ===============================================================
+### PROJECTS - Query & Pagination
+### ===============================================================
+
+### Get all projects - Page 1
+# @name projectsPage1
+GET {{baseUrl}}/projects?limit=20
+Authorization: Bearer {{token}}
+
+###
+@projectsCursor1 = {{projectsPage1.response.body.meta.next_cursor}}
+@projectId = {{projectsPage1.response.body.data.0.id}}
+
+### Projects - Page 2
+# @name projectsPage2
+GET {{baseUrl}}/projects?limit=20&cursor={{projectsCursor1}}
+Authorization: Bearer {{token}}
+
+###
+@projectsCursor2 = {{projectsPage2.response.body.meta.next_cursor}}
+
+### Projects - Page 3
+GET {{baseUrl}}/projects?limit=20&cursor={{projectsCursor2}}
+Authorization: Bearer {{token}}
+
+###
+
+### Filter: Search active projects
+GET {{baseUrl}}/projects?status=active&search=Project
+Authorization: Bearer {{token}}
+
+###
+
+### Get specific project by ID
+GET {{baseUrl}}/projects/{{projectId}}
+Authorization: Bearer {{token}}
+
+### ===============================================================
+### TASKS - Query & Pagination
+### ===============================================================
+
+### Get all tasks - Page 1
+# @name tasksPage1
+GET {{baseUrl}}/tasks?limit=50
+Authorization: Bearer {{token}}
+
+###
+@tasksCursor1 = {{tasksPage1.response.body.meta.next_cursor}}
+@taskId = {{tasksPage1.response.body.data.0.id}}
+@assignedTo = {{tasksPage1.response.body.data.0.assigned_to}}
+
+### Tasks - Page 2
+# @name tasksPage2
+GET {{baseUrl}}/tasks?limit=50&cursor={{tasksCursor1}}
+Authorization: Bearer {{token}}
+
+###
+@tasksCursor2 = {{tasksPage2.response.body.meta.next_cursor}}
+
+### Tasks - Page 3
+GET {{baseUrl}}/tasks?limit=50&cursor={{tasksCursor2}}
+Authorization: Bearer {{token}}
+
+###
+
+### Filter: High priority in-progress tasks
+GET {{baseUrl}}/tasks?status=in_progress&priority=high
+Authorization: Bearer {{token}}
+
+###
+
+### Filter: Tasks by assignee
+GET {{baseUrl}}/tasks?assigned_to={{assignedTo}}&limit=50
+Authorization: Bearer {{token}}
+
+###
+
+### Tasks by project
+GET {{baseUrl}}/tasks?project_id={{projectId}}
+Authorization: Bearer {{token}}
+
+###
+
+### Get specific task by ID
+GET {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{token}}
+
+### ===============================================================
+### AUDIT LOGS - Query & Pagination (Admin Only)
+### ===============================================================
+
+### Get all audit logs - Page 1
+# @name auditPage1
+GET {{baseUrl}}/audit-logs?limit=50
+Authorization: Bearer {{token}}
+
+###
+@auditCursor1 = {{auditPage1.response.body.meta.next_cursor}}
+@correlationId = {{auditPage1.response.body.data.0.metadata.request_id}}
+
+### Audit Logs - Page 2
+# @name auditPage2
+GET {{baseUrl}}/audit-logs?limit=50&cursor={{auditCursor1}}
+Authorization: Bearer {{token}}
+
+###
+@auditCursor2 = {{auditPage2.response.body.meta.next_cursor}}
+
+### Audit Logs - Page 3
+GET {{baseUrl}}/audit-logs?limit=50&cursor={{auditCursor2}}
+Authorization: Bearer {{token}}
+
+###
+
+### Filter: Task creation events
+GET {{baseUrl}}/audit-logs?entity_type=task&action=create
+Authorization: Bearer {{token}}
+
+###
+
+### Trace request by correlation_id
+GET {{baseUrl}}/audit-logs?correlation_id={{correlationId}}
+Authorization: Bearer {{token}}
+
+###
+
+### Filter: Admin actions
+GET {{baseUrl}}/audit-logs?performed_by={{adminId}}&limit=50
+Authorization: Bearer {{token}}
+
+### ===============================================================
+### ORGANIZATIONS
+### ===============================================================
+
+### Get organization details
+GET {{baseUrl}}/organizations/{{org1Id}}
+Authorization: Bearer {{token}}
+
+### ===============================================================
+### RBAC TESTING - Permission Checks
+### ===============================================================
+
+### Member tries to create project (should fail 403)
+POST {{baseUrl}}/projects
+Authorization: Bearer {{memberToken}}
+Content-Type: application/json
+
+{
+  "name": "Unauthorized Project",
+  "description": "Should fail - member cannot create projects"
+}
+
+###
+
+### Manager creates project (should succeed)
+POST {{baseUrl}}/projects
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "Manager Created Project",
+  "description": "Testing RBAC"
+}
+
+### ===============================================================
+### PERFORMANCE TESTING - Large Result Sets
+### ===============================================================
+
+### Max users limit
+GET {{baseUrl}}/users?limit=100
+Authorization: Bearer {{token}}
+
+###
+
+### Max tasks limit (stress test)
+GET {{baseUrl}}/tasks?limit=1000
+Authorization: Bearer {{token}}
+
+###
+
+### Max audit logs limit
+GET {{baseUrl}}/audit-logs?limit=100
+Authorization: Bearer {{token}}
+
+### ===============================================================
+### EDGE CASES
+### ===============================================================
+
+### Search with no results
+GET {{baseUrl}}/users?search=nonexistentuser12345
+Authorization: Bearer {{token}}
+
+###
+
+### Invalid UUID
+GET {{baseUrl}}/users/invalid-uuid
+Authorization: Bearer {{token}}
+
+###
+
+### Non-existent resource
+GET {{baseUrl}}/users/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}

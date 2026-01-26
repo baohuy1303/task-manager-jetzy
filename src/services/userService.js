@@ -19,7 +19,12 @@ class UserService {
         throw new Error('Access denied: User is in different organization');
     }
 
-    // 3. Deactivate User & Unassign Tasks (Transactional)
+    // 3. Prevent self-deactivation (Security: Admins cannot lock themselves out)
+    if (adminUser.id === targetUserId) {
+        throw new Error('Access denied: Admins cannot deactivate themselves');
+    }
+
+    // 4. Deactivate User & Unassign Tasks (Transactional)
     const result = await runTransaction(async (client) => {
         const deactivatedUser = await userRepository.deactivate(targetUserId, client);
 

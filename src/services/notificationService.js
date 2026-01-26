@@ -2,7 +2,7 @@
 const projectMemberRepository = require('../repositories/projectMemberRepository');
 const userRepository = require('../repositories/userRepository');
 const emailQueue = require('../queues/emailQueue');
-
+const projectRepository = require('../repositories/projectRepository');
 class NotificationService {
     async notifyAssignee(taskId, taskTitle, assignedToId, performedById, correlationId) {
         if (!assignedToId) return;
@@ -49,7 +49,7 @@ class NotificationService {
 
             // Fetch managers assigned to this project
             // We use projectMemberRepository to check membership, filtering by role 'manager'
-            const projectManagers = await require('../repositories/projectMemberRepository').findMembersByProject(projectId, {
+            const projectManagers = await projectMemberRepository.findMembersByProject(projectId, {
                 roles: ['manager']
             });
             

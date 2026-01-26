@@ -49,6 +49,10 @@ apiRouter.use('/projects', projectRoutes);
 const taskRoutes = require('./routes/taskRoutes');
 apiRouter.use('/tasks', taskRoutes);
 
+const auditLogRoutes = require('./routes/auditLogRoutes');
+apiRouter.use('/audit-logs', auditLogRoutes);
+
+
 
 // Start Worker
 const processEmailJobs = require('./workers/emailWorker');

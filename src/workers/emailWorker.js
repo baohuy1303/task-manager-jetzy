@@ -150,7 +150,7 @@ const processEmailJobs = () => {
       }
 
       await sendEmail(
-        'huynhbaohuy130333@gmail.com', // Override for testing as per user setup
+        process.env.TEST_EMAIL, // Override for testing
         subject,
         htmlBody
       );
@@ -161,8 +161,6 @@ const processEmailJobs = () => {
       // Log failure to Audit Logs (Background/Async)
       try {
         const auditLogRepository = require('../repositories/auditLogRepository');
-        // We might not have organization_id easily available in all jobs, 
-        // so we try to get it from job data or default to null
         await auditLogRepository.create({
             organization_id: job.data.organization_id || null, // Best effort
             entity_type: 'notification',

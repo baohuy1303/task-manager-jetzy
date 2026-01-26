@@ -93,7 +93,7 @@ class TaskRepository {
         values.push(cursor.sortValue, cursor.id);
     }
 
-    text += ` ORDER BY ${useDirectLookup ? '' : 't.'}created_at DESC, ${useDirectLookup ? '' : 't.'}id DESC`;
+    text += ` ORDER BY date_trunc('milliseconds', ${useDirectLookup ? '' : 't.'}created_at) DESC, ${useDirectLookup ? '' : 't.'}id DESC`;
     
     text += ` LIMIT $${paramIndex++}`;
     values.push(limit + 1);

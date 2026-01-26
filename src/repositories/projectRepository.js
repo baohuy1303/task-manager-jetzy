@@ -61,7 +61,7 @@ class ProjectRepository {
         values.push(filters.cursor.sortValue, filters.cursor.id);
     }
 
-    text += ' ORDER BY created_at DESC, id DESC';
+    text += " ORDER BY date_trunc('milliseconds', created_at) DESC, id DESC";
 
     // LIMIT
     const limit = filters.limit || 50;
