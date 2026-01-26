@@ -32,6 +32,54 @@ class AuthService {
     return { user, token };
   }
 
+  async register(name, email, password, organizationName) {
+    // 1. Check if user already exists (global email uniqueness)
+    const existingUser = await userRepository.findByEmail(email);
+    if (existingUser) {
+      throw new Error('Email already exists');
+    }
+
+    const { runTransaction } = require('../../config/db');
+    const auditLogRepository = require('../repositories/auditLogRepository');
+
+    return await runTransaction(async (client) => {
+      // 2. Hash password with pepper
+      const salt = await bcrypt.genSalt(10);
+      const pepper = process.env.PEPPER;
+      const passwordHash = await bcrypt.hash(password + pepper, salt);
+
+      // 3. Create organization first
+      const organizationRepository = require('../repositories/organizationRepository');
+      const org = await organizationRepository.create(organizationName, null, client);
+
+      // 4. Create admin user with organization_id
+      const user = await userRepository.create({
+        organization_id: org.id,
+        name,
+        email,
+        password_hash: passwordHash,
+        role: 'admin'
+      }, client);
+
+      // 5. Audit Log (Transactional)
+      await auditLogRepository.create({
+        organization_id: org.id,
+        entity_type: 'user',
+        entity_id: user.id,
+        action: 'user_registered',
+        performed_by: user.id,
+        metadata: { 
+          org_name: organizationName,
+          email: email
+        }
+      }, client);
+
+      // 6. Generate token (includes org_id)
+      const token = this.generateToken(user);
+      return { user, organization: org, token };
+    });
+  }
+
   generateToken(user) {
     return jwt.sign(
       { id: user.id, role: user.role, organization_id: user.organization_id },

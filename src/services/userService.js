@@ -87,33 +87,60 @@ class UserService {
   }
 
   
-  async createUser({ organization_id, name, email, password, role }) {
-    // 1. Check if user exists
-    const existingUser = await userRepository.findByEmail(email);
-    if (existingUser) {
-      throw new Error('User already exists');
+  async createUser(creatorUser, { organization_id, name, email, password, role }) {
+    // 1. Validate that organization_id is provided (required)
+    if (!organization_id) {
+      throw new Error('Organization ID is required');
     }
 
-    // 2. Validate Org Requirement
-    if (role !== 'admin' && !organization_id) {
-        throw new Error('Organization ID is required for non-admin users');
+    // 2. Validate that creator's organization matches the target organization
+    if (creatorUser.organization_id !== organization_id) {
+      throw new Error('Access denied: You can only create users in your own organization');
+    }
+
+    // 3. Check if user exists (global email uniqueness)
+    const existingUser = await userRepository.findByEmail(email);
+    if (existingUser) {
+      throw new Error('Email already exists');
+    }
+
+    // 4. Validate that organization exists
+    const orgRepo = require('../repositories/organizationRepository');
+    const org = await orgRepo.findById(organization_id);
+    if (!org) {
+      throw new Error('Organization not found');
     }
     
-    // 3. Hash Password
+    // 5. Hash Password
     const salt = await bcrypt.genSalt(10);
     const pepper = process.env.PEPPER;
     const passwordHash = await bcrypt.hash(password + pepper, salt);
 
-    // 4. Create User
-    const user = await userRepository.create({
-      organization_id: organization_id || null, 
-      name,
-      email,
-      password_hash: passwordHash,
-      role
-    });
+    return await runTransaction(async (client) => {
+      // 6. Create User
+      const user = await userRepository.create({
+        organization_id,
+        name,
+        email,
+        password_hash: passwordHash,
+        role
+      }, client);
 
-    return user;
+      // 7. Audit Log (Transactional)
+      await auditLogRepository.create({
+        organization_id: organization_id,
+        entity_type: 'user',
+        entity_id: user.id,
+        action: 'user_created',
+        performed_by: creatorUser.id,
+        metadata: { 
+          role,
+          email: email
+        }
+      }, client);
+
+      return user;
+    });
   }
 
   async updateUser(requestingUser, targetUserId, updates) {
@@ -144,7 +171,13 @@ class UserService {
 
       // 3. Prepare Updates
       const cleanUpdates = { ...updates };
-      // Prevent accidental Org update via this route (use specific route for that)
+      
+      // organization_id is immutable - explicitly reject attempts to change it
+      if (updates.organization_id && updates.organization_id !== targetUser.organization_id) {
+          throw new Error('Access denied: organization_id cannot be changed');
+      }
+      
+      // Prevent accidental Org update via this route
       delete cleanUpdates.organization_id; 
       delete cleanUpdates.id;
 
@@ -181,7 +214,7 @@ class UserService {
       });
   }
 
-  async updateUserOrganization(id, organization_id) {
+  /*async updateUserOrganization(id, organization_id) {
      if (!organization_id) throw new Error('Organization ID required');
      // Verify Org exists
      const orgRepo = require('../repositories/organizationRepository');
@@ -191,7 +224,7 @@ class UserService {
      if (user.organization_id !== organization_id) throw new Error('User is in different organization');
 
      return await userRepository.updateOrganization(id, organization_id);
-  }
+  }*/
 
   async assignProject(adminUser, userId, projectId, action = 'assign') {
       const targetUser = await this.getUserById(userId);

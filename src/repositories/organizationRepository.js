@@ -1,10 +1,10 @@
 const { query } = require('../../config/db');
 
 class OrganizationRepository {
-  async create(name, created_by) {
+  async create(name, created_by, client) {
     const text = 'INSERT INTO organizations (name, created_by) VALUES ($1, $2) RETURNING *';
     const values = [name, created_by];
-    const { rows } = await query(text, values);
+    const { rows } = await (client ? client.query(text, values) : query(text, values));
     return rows[0];
   }
 
@@ -20,9 +20,9 @@ class OrganizationRepository {
     return rows[0];
   }
 
-  async updateStatus(id, status) {
+  async updateStatus(id, status, client) {
     const text = 'UPDATE organizations SET status = $1 WHERE id = $2 RETURNING *';
-    const { rows } = await query(text, [status, id]);
+    const { rows } = await (client ? client.query(text, [status, id]) : query(text, [status, id]));
     return rows[0];
   }
 }

@@ -28,6 +28,7 @@ class NotificationService {
             await emailQueue.add({
                 type: 'TASK_ASSIGNED',
                 email: user.email,
+                organization_id: user.organization_id, // For auditing
                 taskTitle: taskTitle,
                 taskId: taskId,
                 performedByName: performedByName,
@@ -64,10 +65,11 @@ class NotificationService {
             }
             
             // Queue jobs (one per recipient)
-            const jobs = recipients.map(user => ({
+            const jobs = recipients.map(recipient => ({
                 data: {
                     type: 'TASK_COMPLETED',
-                    email: user.email,
+                    email: recipient.email,
+                    organization_id: project.organization_id, // For auditing
                     taskTitle: taskTitle,
                     taskId: taskId,
                     performedByName: performedByName,
@@ -127,6 +129,7 @@ class NotificationService {
                     data: {
                         type: 'USER_DEACTIVATED',
                         email: admin.email,
+                        organization_id: admin.organization_id, // For auditing
                         managerName: admin.name, // "Manager Name" implies recipient name in email template
                         deactivatedUserName: deactivatedUser.name,
                         deactivatedUserRole: role,
@@ -170,6 +173,7 @@ class NotificationService {
                             data: {
                                 type: 'USER_DEACTIVATED',
                                 email: manager.email,
+                                organization_id: deactivatedUser.organization_id, // For auditing
                                 managerName: manager.name,
                                 deactivatedUserName: deactivatedUser.name,
                                 deactivatedUserRole: role,

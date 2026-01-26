@@ -4,15 +4,17 @@ class UserController {
   async create(req, res, next) {
     try {
       const { organization_id, name, email, password, role } = req.body;
-      // TODO: Add Joi validation here
-      const user = await userService.createUser({ organization_id, name, email, password, role });
+      const user = await userService.createUser(req.user, { organization_id, name, email, password, role });
       res.status(201).json({ success: true, data: user });
     } catch (error) {
-      if (error.message === 'Email already exists in this organization') {
+      if (error.message === 'Email already exists') {
         return res.status(409).json({ success: false, error: error.message });
       }
       if (error.message === 'Organization not found') {
         return res.status(404).json({ success: false, error: error.message });
+      }
+      if (error.message.startsWith('Access denied')) {
+        return res.status(403).json({ success: false, error: error.message });
       }
       next(error);
     }
@@ -54,7 +56,7 @@ class UserController {
     }
   }
 
-  async updateOrganization(req, res, next) {
+  /* async updateOrganization(req, res, next) {
     try {
       const { id } = req.params;
       const { organization_id } = req.body;
@@ -69,7 +71,7 @@ class UserController {
       }
       next(error);
     }
-  }
+  }*/
 
   async deactivate(req, res, next) {
     try {

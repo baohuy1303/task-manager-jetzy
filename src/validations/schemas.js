@@ -1,6 +1,13 @@
 const Joi = require('joi');
 
 const authSchema = {
+  register: Joi.object({
+    name: Joi.string().min(2).required(),
+    email: Joi.string().email().required(),
+    password: Joi.string().min(6).required(),
+    organization_name: Joi.string().min(3).required(),
+    // role and organization_id are NOT accepted
+  }),
   login: Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string().required(),
@@ -15,7 +22,7 @@ const orgSchema = {
 
 const userSchema = {
   create: Joi.object({
-    organization_id: Joi.string().uuid().allow(null, '').optional(), // Optional for Admin
+    organization_id: Joi.string().uuid().required(), // Now required - admin only route
     name: Joi.string().min(2).required(),
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),

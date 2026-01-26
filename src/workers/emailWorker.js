@@ -157,6 +157,28 @@ const processEmailJobs = () => {
 
     } catch (error) {
       console.error(`Error processing email job ${job.id}:`, error);
+
+      // Log failure to Audit Logs (Background/Async)
+      try {
+        const auditLogRepository = require('../repositories/auditLogRepository');
+        // We might not have organization_id easily available in all jobs, 
+        // so we try to get it from job data or default to null
+        await auditLogRepository.create({
+            organization_id: job.data.organization_id || null, // Best effort
+            entity_type: 'notification',
+            entity_id: job.id.toString().includes(':') ? null : job.id, // Bull IDs can be complex
+            action: 'notification_failure',
+            performed_by: null, // System action
+            metadata: {
+                type,
+                error: error.message,
+                to: email || job.data.email
+            }
+        });
+      } catch (auditError) {
+        console.error('Failed to log notification failure to audit logs:', auditError);
+      }
+
       throw error; // Trigger retry
     }
   });

@@ -5,15 +5,13 @@ const validate = require('../middlewares/validationMiddleware');
 const { userSchema } = require('../validations/schemas');
 const { authenticate, authorize, requireOrganization, validateOrganizationStatus } = require('../middlewares/authMiddleware');
 
-router.post('/', validate(userSchema.create), userController.create);
+// Protected routes - Admin only user creation
+router.post('/', authenticate, requireOrganization, authorize('admin'), validate(userSchema.create), userController.create);
 
 router.use(authenticate);
 router.use(validateOrganizationStatus);
 
-// 1. Routes allowed properly WITHOUT Org (e.g. Linking)
-router.patch('/:id/organization', authorize('admin'), userController.updateOrganization);
-
-// 2. All other routes REQUIRE Org
+// All routes REQUIRE Org
 router.use(requireOrganization);
 
 // Admin/Manager Project Assignment Route

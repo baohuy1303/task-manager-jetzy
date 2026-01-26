@@ -1,14 +1,14 @@
 const { query } = require('../../config/db');
 
 class UserRepository {
-  async create({ organization_id, name, email, password_hash, role }) {
+  async create({ organization_id, name, email, password_hash, role }, client) {
     const text = `
       INSERT INTO users (organization_id, name, email, password_hash, role)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING id, organization_id, name, email, role, is_active, created_at
     `;
     const values = [organization_id, name, email, password_hash, role];
-    const { rows } = await query(text, values);
+    const { rows } = await (client ? client.query(text, values) : query(text, values));
     return rows[0];
   }
 
