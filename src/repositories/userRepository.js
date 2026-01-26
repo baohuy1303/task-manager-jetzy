@@ -32,6 +32,11 @@ class UserRepository {
      if (filters.role) {
          text += ` AND role = $${paramIndex++}`;
          values.push(filters.role);
+     } else if (filters.roles && filters.roles.length > 0) {
+         const placeholders = filters.roles.map((_, i) => `$${paramIndex + i}`).join(', ');
+         text += ` AND role IN (${placeholders})`;
+         filters.roles.forEach(r => values.push(r));
+         paramIndex += filters.roles.length;
      }
 
      if (filters.is_active !== undefined) {

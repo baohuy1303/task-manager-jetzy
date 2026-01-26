@@ -5,6 +5,7 @@ const projectRepository = require('../repositories/projectRepository');
 const projectMemberRepository = require('../repositories/projectMemberRepository');
 const userRepository = require('../repositories/userRepository');
 const { runTransaction } = require('../../config/db');
+const notificationService = require('./notificationService');
 
 class TaskService {
   async createTask(user, { project_id, title, description, priority, assigned_to, due_date }) {
@@ -19,7 +20,7 @@ class TaskService {
       if (assignedUser.organization_id !== user.organization_id) throw new Error('Access denied');
     }
 
-    return await runTransaction(async (client) => {
+    const result = await runTransaction(async (client) => {
         const task = await taskRepository.create({
           project_id,
           title,
@@ -40,6 +41,12 @@ class TaskService {
 
         return task;
     });
+
+    if (assigned_to) {
+        notificationService.notifyAssignee(result.id, title, assigned_to, user.id);
+    }
+
+    return result;
   }
 
   async getTasks(user, filters = {}) {
@@ -155,7 +162,7 @@ class TaskService {
         throw new Error(`Invalid status transition from ${oldStatus} to ${newStatus}`);
     }
 
-    return await runTransaction(async (client) => {
+    const result = await runTransaction(async (client) => {
         const updatedTask = await taskRepository.updateStatus(id, newStatus, expectedVersion, client);
 
         if (!updatedTask && expectedVersion !== undefined) {
@@ -182,6 +189,13 @@ class TaskService {
 
         return updatedTask;
     });
+
+    // Post-Transaction Notifications
+    if (oldStatus === 'review' && newStatus === 'done') {
+        notificationService.notifyManagers(id, task.title, task.project_id, user.id);
+    }
+    
+    return result;
   }
 
   async deleteTask(user, id) {

@@ -43,7 +43,10 @@ const taskRoutes = require('./routes/taskRoutes');
 apiRouter.use('/tasks', taskRoutes);
 
 
-// Error Handling
+// Start Worker
+const processEmailJobs = require('./workers/emailWorker');
+processEmailJobs();
+
 app.use(errorHandler);
 
 module.exports = app;
