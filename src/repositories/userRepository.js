@@ -112,6 +112,12 @@ class UserRepository {
     const { rows } = await (client ? client.query(text, [id]) : query(text, [id]));
     return rows[0];
   }
+
+  async findAdminsByOrganization(organization_id) {
+      const text = `SELECT * FROM users WHERE organization_id = $1 AND role = 'admin' AND is_active = true`;
+      const { rows } = await query(text, [organization_id]);
+      return rows;
+  }
 }
 
 module.exports = new UserRepository();

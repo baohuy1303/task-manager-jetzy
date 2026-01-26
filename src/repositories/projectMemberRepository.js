@@ -65,6 +65,20 @@ class ProjectMemberRepository {
       const { rows } = await query(text, values);
       return rows;
   }
+
+  async findManagersByProjectIds(projectIds) {
+      if (!projectIds || projectIds.length === 0) return [];
+      const text = `
+        SELECT u.email, u.name, pm.project_id 
+        FROM users u 
+        JOIN project_members pm ON u.id = pm.user_id 
+        WHERE pm.project_id = ANY($1) 
+        AND u.role = 'manager' 
+        AND u.is_active = true
+      `;
+      const { rows } = await query(text, [projectIds]);
+      return rows;
+  }
 }
 
 module.exports = new ProjectMemberRepository();

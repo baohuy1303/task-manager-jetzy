@@ -103,6 +103,47 @@ const processEmailJobs = () => {
           `;
           break;
 
+        case 'USER_DEACTIVATED':
+          const taskList = job.data.tasks && job.data.tasks.length > 0 
+              ? job.data.tasks.map(t => `<li><strong>${t.title}</strong> (ID: ${t.id})</li>`).join('')
+              : '<li>No pending tasks unassigned.</li>';
+          
+          let projectsSection = '';
+          if (job.data.associatedProjects && job.data.associatedProjects.length > 0) {
+              const projList = job.data.associatedProjects.map(p => `<li>${p}</li>`).join('');
+              projectsSection = `
+                <p>The user was working on the following projects:</p>
+                <ul>${projList}</ul>
+              `;
+          }
+
+          const roleLabel = job.data.deactivatedUserRole ? ` (${job.data.deactivatedUserRole})` : '';
+
+          subject = `Action Required: User Deactivated${roleLabel}`;
+          htmlBody = `
+            <div style="${baseStyles}">
+              <div style="${headerStyles} background-color: #d9534f;">
+                <h1 style="margin:0;">User Deactivated</h1>
+              </div>
+              <div style="${contentStyles}">
+                <p>Hello ${job.data.managerName},</p>
+                <p>User <strong>${job.data.deactivatedUserName}</strong>${roleLabel} has been deactivated.</p>
+                
+                ${projectsSection}
+
+                <p>The following tasks are now <strong>Unassigned</strong> and require attention:</p>
+                <ul>
+                  ${taskList}
+                </ul>
+                <p>Please review and reassign immediately.</p>
+              </div>
+              <div style="${footerStyles}">
+                Task Manager System
+              </div>
+            </div>
+          `;
+          break;
+
         default:
           console.warn(`Unknown job type: ${type}`);
           return;

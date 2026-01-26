@@ -19,11 +19,12 @@ class UserService {
         throw new Error('Access denied: User is in different organization');
     }
 
-    // 3. Deactivate User & Reassign Tasks (Transactional)
-    return await runTransaction(async (client) => {
+    // 3. Deactivate User & Unassign Tasks (Transactional)
+    const result = await runTransaction(async (client) => {
         const deactivatedUser = await userRepository.deactivate(targetUserId, client);
 
-        const reassignedTasks = await taskRepository.reassignTasksToProjectCreator({ old_assigned_to: targetUserId }, client);
+        // Changed Logic: Unassign tasks instead of reassigning
+        const unassignedTasks = await taskRepository.unassignTasks(targetUserId, client);
         
         await auditLogRepository.create({
               organization_id: adminUser.organization_id,
@@ -31,14 +32,32 @@ class UserService {
               entity_id: targetUserId,
               action: 'deactivate',
               performed_by: adminUser.id,
-              metadata: { reassigned_tasks: reassignedTasks.length }
+              metadata: { unassigned_tasks: unassignedTasks.length }
         }, client);
 
         return {
             user: deactivatedUser,
-            reassignedTasksCount: reassignedTasks.length
+            unassignedTasks,
+            unassignedTasksCount: unassignedTasks.length
         };
     });
+
+    // 4. Notify (Post-Transaction)
+    if (targetUser.role === 'member' && result.unassignedTasksCount === 0) {
+        return { 
+        user: result.user, 
+        unassignedTasksCount: result.unassignedTasksCount 
+    };
+    }
+    const notificationService = require('./notificationService');
+    notificationService.notifyDeactivation(result.user, result.unassignedTasks, adminUser.id).catch(err => {
+         console.error('[UserService] Failed to queue deactivation notifications:', err);
+    });
+
+    return { 
+        user: result.user, 
+        unassignedTasksCount: result.unassignedTasksCount 
+    };
   }
 
   async reactivateUser(adminUser, targetUserId) {
@@ -213,9 +232,11 @@ class UserService {
                 return result;
               }
               
-              if (alreadyHasProject.length > 0) {
+              // Restriction: Members can only be in one project at a time
+              if (targetUser.role === 'member' && alreadyHasProject.length > 0) {
                   throw new Error('User already has a project assigned, remove the old one, and reassign');
               }
+
               const result = await projectMemberRepository.addMember(projectId, userId, client);
               
                await auditLogRepository.create({
