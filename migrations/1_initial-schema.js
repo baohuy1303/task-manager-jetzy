@@ -39,20 +39,20 @@ exports.up = (pgm) => {
     is_active: { type: 'boolean', default: true },
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.createIndex('users', ['organization_id']);
+  pgm.createIndex('users', ['organization_id']); //Fast search for users in an organization
 
   pgm.addColumn('organizations', {
     created_by: { type: 'uuid', references: 'users(id)', onDelete: 'SET NULL' }
-  });
+  }); //Circular dependency between users and organizations so have to append later
 
   pgm.addConstraint('users', 'unique_email_global', {
     unique: 'email'
-  });
+  }); //Unique constraint for email
   pgm.sql(`
     CREATE INDEX idx_users_org_role_active 
     ON users (organization_id, role, created_at DESC, id DESC)
     WHERE is_active = true
-  `);
+  `); //Composite index for fast search and sorting (user in an org who's active)
 
   // Projects
   pgm.createTable('projects', {
@@ -64,19 +64,11 @@ exports.up = (pgm) => {
     created_by: { type: 'uuid', references: 'users(id)', onDelete: 'SET NULL' },
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.createIndex('projects', 
-    [
-      'organization_id', 
-      { name: 'created_at', sort: 'DESC' }, 
-      { name: 'id', sort: 'DESC' }
-    ], 
-    { name: 'idx_projects_org_created' }
-  );
   pgm.sql(`
-    CREATE INDEX idx_projects_org_status 
-    ON projects (organization_id, status, created_at DESC)
+    CREATE INDEX idx_projects_org_active_created
+    ON projects (organization_id, created_at DESC, id DESC)
     WHERE status != 'archived'
-  `);
+  `); //Composite index for fast search and sorting (project in an org who's not archived)
 
   // Project Members (junction table)
   pgm.createTable('project_members', {
@@ -84,8 +76,8 @@ exports.up = (pgm) => {
     project_id: { type: 'uuid', notNull: true, references: 'projects(id)', onDelete: 'CASCADE' },
     assigned_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.addConstraint('project_members', 'project_members_pkey', { primaryKey: ['user_id', 'project_id'] });
-  pgm.createIndex('project_members', ['project_id']);
+  pgm.addConstraint('project_members', 'project_members_pkey', { primaryKey: ['user_id', 'project_id'] }); //Composite primary key for fast search because it's the common case (user in a project)
+  pgm.createIndex('project_members', ['project_id']); //Index for fast search (project with users)
 
   // Tasks
   pgm.createTable('tasks', {
@@ -101,13 +93,14 @@ exports.up = (pgm) => {
     is_deleted: { type: 'boolean', default: false },
     version: { type: 'integer', default: 1, notNull: true },
   });
-  pgm.createIndex('tasks', ['project_id', 'status']);
-  pgm.createIndex('tasks', ['assigned_to']);
+  pgm.sql(`CREATE INDEX idx_tasks_project_active_created
+    ON tasks (project_id, status, created_at DESC)
+    WHERE is_deleted = false`); //Composite index for fast search pagination sorting (task in a project with desired status and sorted by creation date ideal for managers)
   pgm.sql(`
     CREATE INDEX idx_tasks_active_assigned 
     ON tasks (assigned_to, status, created_at DESC) 
     WHERE is_deleted = false
-  `);
+  `); //Composite index for fast search and sorting (task assigned to a user with desired status and sorted by creation date ideal for users)
 
   // Task Workflows
   pgm.createTable('task_workflows', {
@@ -119,7 +112,7 @@ exports.up = (pgm) => {
     changed_by: { type: 'uuid', references: 'users(id)', onDelete: 'SET NULL' },
     changed_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.createIndex('task_workflows', ['project_id']);
+  pgm.createIndex('task_workflows', ['project_id']); //Index for fast search (task workflow in a project)
   pgm.createIndex('task_workflows', 
     [
       'task_id', 
@@ -127,7 +120,7 @@ exports.up = (pgm) => {
       { name: 'changed_at', sort: 'DESC' }
     ], 
     { name: 'idx_task_workflows_task_user_changed' }
-  );
+  ); //See which user changed the status of a task and when
 
   // Audit Logs
   pgm.createTable('audit_logs', {
@@ -140,9 +133,9 @@ exports.up = (pgm) => {
     metadata: { type: 'jsonb' },
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.createIndex('audit_logs', ['organization_id', { name: 'created_at', sort: 'DESC' }], { name: 'idx_audit_org_created' });
-  pgm.createIndex('audit_logs', ['entity_type', 'entity_id'], { name: 'idx_audit_entity' });
-  pgm.sql(`CREATE INDEX idx_audit_correlation ON audit_logs ((metadata->>'request_id'))`);
+  pgm.createIndex('audit_logs', ['organization_id', { name: 'created_at', sort: 'DESC' }], { name: 'idx_audit_org_created' }); //Index for fast search and sorting (audit log in an organization sorted by creation date)
+  pgm.createIndex('audit_logs', ['entity_type', 'entity_id'], { name: 'idx_audit_entity' }); //Index for fast search (audit log for a type of thing done)
+  pgm.sql(`CREATE INDEX idx_audit_correlation ON audit_logs ((metadata->>'request_id'))`); //Fast correlation lookup
 
   // ========================================================================
   // PERFORMANCE INDEXES
