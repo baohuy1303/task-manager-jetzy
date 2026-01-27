@@ -480,7 +480,47 @@
 
 ---
 
-## 6. Audit Log Endpoints
+## 6. Task Workflow History Endpoints
+
+### GET `/task-workflows/tasks/:taskId/history`
+**Description**: Get status change history for a specific task  
+**Authorization**: All authenticated users  
+**Query Parameters**: `changed_by`, `from_status`, `to_status`, `limit`, `cursor`  
+
+**Use Cases**:
+- View complete timeline of task status transitions
+- Check who moved task to specific status
+- Audit workflow compliance
+
+**Test Cases**:
+- ✅ Happy: Task history retrieved (200 OK)
+- ✅ Happy: Filter by changed_by user
+- ✅ Happy: Pagination with cursor
+- ❌ Error: Task not found (404 Not Found)
+- ❌ Error: Non-member accessing project task (403 Forbidden)
+
+---
+
+### GET `/task-workflows/history`
+**Description**: Organization-wide task status change history  
+**Authorization**: Admin, Manager  
+**Query Parameters**: `task_id`, `project_id`, `changed_by`, `from_status`, `to_status`, `limit`, `cursor`  
+
+**Use Cases**:
+- Monitor team activity and velocity
+- Audit all status changes across organization
+- Track productivity patterns
+
+**Test Cases**:
+- ✅ Happy: Org-wide history retrieved (200 OK)
+- ✅ Happy: Filter by project or user
+- ✅ Happy: Pagination support
+- ❌ Error: Member tries to access (403 Forbidden)
+
+---
+
+## 7. Audit Log Endpoints
+
 
 ### GET `/audit-logs`
 **Description**: Query audit logs with advanced filtering  
@@ -503,7 +543,7 @@
 
 ---
 
-## Total Endpoints: 25
+## Total Endpoints: 27
 
 ### By Category:
 - **Authentication**: 2 endpoints
@@ -511,6 +551,7 @@
 - **Users**: 7 endpoints
 - **Projects**: 4 endpoints
 - **Tasks**: 7 endpoints
+- **Task Workflow History**: 2 endpoints
 - **Audit Logs**: 1 endpoint
 
 ### By Authorization:

@@ -132,7 +132,7 @@ The system must correctly handle:
 - Complete backend source code
 - PostgreSQL schema & migrations
 - Clear README explaining:
-    o Architecture decisions
+    o Architecture decisionsp
     o How to run the system
     o Trade-offs made
 
