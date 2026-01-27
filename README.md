@@ -80,9 +80,8 @@ npm run dev         # Start dev server
 ### Running Tests
 ```bash
 npm run test:full   # Runs all 25+ endpoint tests
-
-Read [SCRIPT_TEST.md](tests/SCRIPT_TEST.md) and [MANUAL_API_TEST.md](tests/http/MANUAL_API_TEST.md) for more information
 ```
+Read [SCRIPT_TEST.md](tests/SCRIPT_TEST.md) and [MANUAL_API_TEST.md](tests/http/MANUAL_API_TEST.md) for more information
 
 ### Available NPM Scripts
 | Command | Purpose |
@@ -104,10 +103,10 @@ Read [SCRIPT_TEST.md](tests/SCRIPT_TEST.md) and [MANUAL_API_TEST.md](tests/http/
 |-------|---------------|-----|
 | **Users** | Partial index `(org_id, role, created_at DESC, id) WHERE is_active = true` | 60% index size reduction, optimizes active user queries |
 | **Projects** | Partial index `WHERE status != 'archived'` | Skip dead records, enhances performance in most queries |
-| **Tasks** | `version` column + partial index `WHERE is_deleted = false` | Optimistic locking + soft delete support |
+| **Tasks** | `version` column + partial index `WHERE is_deleted = false` | Optimistic locking + soft delete support + faster queries |
 | **Task Workflows** | Denormalized `project_id` | Eliminates JOIN for org-wide audit queries (2x faster) |
 | **Audit Logs** | Expression index `(metadata->>'request_id')` | Fast correlation ID lookups in JSONB |
-| **Project Members** | Composite PK `(user_id, project_id)` | Enforces uniqueness in many-to-many |
+| **Project Members** | Composite PK `(user_id, project_id)` | Enforces uniqueness in many-to-many and makes common cases fast (user gets their projects)|
 
 ### Indexing Strategy
 
@@ -119,6 +118,8 @@ Read [SCRIPT_TEST.md](tests/SCRIPT_TEST.md) and [MANUAL_API_TEST.md](tests/http/
 
 **Decision**: Expression indexes for JSONB fields.  
 **Why**: Makes flexible metadata queryable without schema migrations.
+
+**MORE:** All indexing strategy and schema design justification can be found here [DB_SCHEMA](migrations/1_initial-schema.js)
 
 ### Foreign Key Cascades
 
@@ -307,4 +308,4 @@ See [`API_ENDPOINTS.md`](./API_ENDPOINTS.md) for complete endpoint reference (27
 
 ## Author
 
-Huy B. Huynh: [EMAIL_ADDRESS]
+Huy B. Huynh: huynhbaohuy130333@gmail.com
