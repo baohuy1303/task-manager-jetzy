@@ -129,24 +129,54 @@ async function seedDatabase() {
     console.log('4️⃣  Assigning users to projects...');
     let assignmentCount = 0;
 
-    for (const project of projects) {
-      const orgUsers = users.filter(u => u.organization_id === project.organization_id && u.role !== 'admin');
-      
-      // Assign 2-5 users per project
-      const numAssignments = Math.floor(Math.random() * 4) + 2;
-      for (let i = 0; i < numAssignments && i < orgUsers.length; i++) {
-        const user = orgUsers[i];
+    for (const org of orgs) {
+      const orgProjects = projects.filter(p => p.organization_id === org.id);
+      if (orgProjects.length === 0) continue;
+
+      const orgManagers = users.filter(u => u.organization_id === org.id && u.role === 'manager');
+      const orgMembers = users.filter(u => u.organization_id === org.id && u.role === 'member');
+      const orgIndex = orgs.indexOf(org) + 1;
+
+      // 4a. Handle Members: Exactly 1 project each (if projects exist)
+      for (const member of orgMembers) {
+        let targetProject;
         
-        await query(`
-          INSERT INTO project_members (project_id, user_id)
-          VALUES ($1, $2)
-          ON CONFLICT DO NOTHING
-        `, [project.id, user.id]);
+        // Special: Guarantee member-1@org1.com is in Project 1 (Org 1)
+        if (member.email === 'member-1@org1.com') {
+          targetProject = orgProjects.find(p => p.name === 'Project 1 (Org 1)');
+        } else {
+          // Pick 1 random project for other members
+          targetProject = orgProjects[Math.floor(Math.random() * orgProjects.length)];
+        }
+
+        if (targetProject) {
+          await query(`
+            INSERT INTO project_members (project_id, user_id)
+            VALUES ($1, $2)
+          `, [targetProject.id, member.id]);
+          assignmentCount++;
+        }
+      }
+
+      // 4b. Handle Managers: Can have multiple projects
+      for (const project of orgProjects) {
+        // Shuffle managers for this project
+        const shuffledManagers = [...orgManagers].sort(() => Math.random() - 0.5);
         
-        assignmentCount++;
+        // Assign 1-2 managers per project
+        const numManagers = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < numManagers && i < shuffledManagers.length; i++) {
+          const manager = shuffledManagers[i];
+          await query(`
+            INSERT INTO project_members (project_id, user_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+          `, [project.id, manager.id]);
+          assignmentCount++;
+        }
       }
     }
-    console.log(`✅ Created ${assignmentCount} project assignments\n`);
+    console.log(`✅ Created ${assignmentCount} project assignments (Restricted Members to 1 project)\n`);
 
     // ========================================================================
     // 5. Create 5,000 Tasks (1,000 per org)
@@ -158,11 +188,23 @@ async function seedDatabase() {
 
     for (const org of orgs) {
       const orgProjects = projects.filter(p => p.organization_id === org.id);
-      const orgUsers = users.filter(u => u.organization_id === org.id && u.role !== 'admin');
+      
+      // Mapping: projectId -> Array of userId
+      const projectMembersMap = {};
+      for (const project of orgProjects) {
+        const membersResult = await query('SELECT user_id FROM project_members WHERE project_id = $1', [project.id]);
+        projectMembersMap[project.id] = membersResult.rows.map(r => r.user_id);
+      }
 
       for (let i = 1; i <= 1000; i++) {
         const project = orgProjects[i % orgProjects.length];
-        const assignee = Math.random() > 0.3 ? orgUsers[i % orgUsers.length] : null;
+        const validAssignees = projectMembersMap[project.id] || [];
+        
+        // Pick an assignee from the project members (or null)
+        const assigneeId = (Math.random() > 0.3 && validAssignees.length > 0) 
+          ? validAssignees[Math.floor(Math.random() * validAssignees.length)] 
+          : null;
+          
         const status = taskStatuses[Math.floor(Math.random() * taskStatuses.length)];
         const priority = priorities[Math.floor(Math.random() * priorities.length)];
 
@@ -175,7 +217,7 @@ async function seedDatabase() {
           `Description for task ${i}`,
           status,
           priority,
-          assignee?.id,
+          assigneeId,
           false,
           1,
           i
@@ -187,7 +229,121 @@ async function seedDatabase() {
         }
       }
     }
-    console.log(`\n✅ Created ${taskCount} tasks\n`);
+    console.log('');
+
+    // ========================================================================
+    // 5.5. Create Task Workflow Histories
+    // ========================================================================
+    console.log('5️⃣ -a Creating task workflow histories...');
+    
+    // Get all tasks that have transitioned from todo
+    const tasksWithHistory = await query(`
+      SELECT id, project_id, status, created_at 
+      FROM tasks 
+      WHERE status != 'todo' 
+      ORDER BY created_at
+      LIMIT 1000
+    `);
+    
+    let workflowCount = 0;
+    for (const task of tasksWithHistory.rows) {
+      // Get a random user from the project as the changer
+      const projectMembers = await query(
+        'SELECT user_id FROM project_members WHERE project_id = $1 LIMIT 5',
+        [task.project_id]
+      );
+      
+      if (projectMembers.rows.length === 0) continue;
+      
+      const changerId = projectMembers.rows[0].user_id;
+      
+      // Simulate workflow: todo -> in_progress
+      await query(`
+        INSERT INTO task_workflows (task_id, project_id, from_status, to_status, changed_by, changed_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [task.id, task.project_id, 'todo', 'in_progress', changerId, new Date(task.created_at.getTime() + 3600000)]);
+      workflowCount++;
+      
+      // If task is in review or done, add more history
+      if (task.status === 'review' || task.status === 'done') {
+        await query(`
+          INSERT INTO task_workflows (task_id, project_id, from_status, to_status, changed_by, changed_at)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [task.id, task.project_id, 'in_progress', 'review', changerId, new Date(task.created_at.getTime() + 7200000)]);
+        workflowCount++;
+      }
+      
+      // If task is done, complete the workflow
+      if (task.status === 'done') {
+        await query(`
+          INSERT INTO task_workflows (task_id, project_id, from_status, to_status, changed_by, changed_at)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [task.id, task.project_id, 'review', 'done', changerId, new Date(task.created_at.getTime() + 10800000)]);
+        workflowCount++;
+      }
+    }
+    console.log(`✅ Created ${workflowCount} workflow history entries\n`);
+
+    // ========================================================================
+    // 6. Create 10,000 Audit Logs
+    // ========================================================================
+    console.log('6️⃣  Creating audit logs (10,000 total)...');
+    const entityTypes = ['user', 'task', 'project', 'organization'];
+    const actions = ['create', 'update', 'delete', 'assign', 'status_change'];
+    let logCount = 0;
+
+    for (const org of orgs) {
+      const orgUsers = users.filter(u => u.organization_id === org.id);
+      const orgTasks = projects.filter(p => p.organization_id === org.id); // Tasks actually belong to projects
+      // Get some actual task IDs for this org
+      const actualTasks = await query('SELECT id FROM tasks WHERE project_id IN (SELECT id FROM projects WHERE organization_id = $1) LIMIT 100', [org.id]);
+      const orgTaskIds = actualTasks.rows.map(r => r.id);
+      const orgProjectIds = projects.filter(p => p.organization_id === org.id).map(p => p.id);
+      const orgUserIds = orgUsers.map(u => u.id);
+
+      for (let i = 1; i <= 2000; i++) {
+        const entityType = entityTypes[Math.floor(Math.random() * entityTypes.length)];
+        let entityId;
+        
+        switch(entityType) {
+          case 'user': entityId = orgUserIds[Math.floor(Math.random() * orgUserIds.length)]; break;
+          case 'task': entityId = orgTaskIds[Math.floor(Math.random() * orgTaskIds.length)] || org.id; break;
+          case 'project': entityId = orgProjectIds[Math.floor(Math.random() * orgProjectIds.length)]; break;
+          default: entityId = org.id;
+        }
+
+        const action = actions[Math.floor(Math.random() * actions.length)];
+        const performer = orgUserIds[Math.floor(Math.random() * orgUserIds.length)];
+        
+        // Randomly add correlation ID to some logs
+        const metadata = { 
+          source: 'seed_script',
+          details: `Automatic seed log ${i}`
+        };
+        if (Math.random() > 0.7) {
+          metadata.request_id = `req-${Math.random().toString(36).substring(2, 15)}`;
+        }
+
+        await query(`
+          INSERT INTO audit_logs (organization_id, entity_type, entity_id, action, performed_by, metadata, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW() - (interval '1 second' * $7))
+        `, [
+          org.id,
+          entityType,
+          entityId,
+          action,
+          performer,
+          JSON.stringify(metadata),
+          logCount
+        ]);
+
+        logCount++;
+        if (logCount % 500 === 0) {
+          process.stdout.write(`\r   Progress: ${logCount}/10000`);
+        }
+      }
+    }
+    console.log(`\n✅ Created ${logCount} audit logs\n`);
 
     // ========================================================================
     // Statistics

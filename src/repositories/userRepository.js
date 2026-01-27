@@ -63,13 +63,13 @@ class UserRepository {
      }
 
      if (filters.search) {
-         text += ` AND name ILIKE $${paramIndex++}`;
+         text += ` AND (name ILIKE $${paramIndex} OR email ILIKE $${paramIndex++})`;
          values.push(`%${filters.search}%`);
      }
 
      if (filters.email) {
-         text += ` AND email = $${paramIndex++}`;
-         values.push(filters.email);
+         text += ` AND email ILIKE $${paramIndex++}`;
+         values.push(`%${filters.email}%`);
      }
 
      // CURSOR CLAUSE

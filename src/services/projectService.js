@@ -44,6 +44,9 @@ class ProjectService {
 
   async getProjectsByOrganization(user, filters = {}) {
     if (!user.organization_id) return { success: true, count: 0, data: [], meta: { has_more: false } };
+    if (user.role === 'member') {
+        return await projectMemberRepository.findProjectsByUser(user.id);
+    }
 
     const { decodeCursor, buildPaginationResponse } = require('../utils/pagination');
     const limit = parseInt(filters.limit) || 20; // Default lower for projects
@@ -73,18 +76,12 @@ class ProjectService {
                 limit, 
                 cursor 
     });
-  }
+    }
 
         return buildPaginationResponse(projects, limit, (item) => ({
             sortValue: item.created_at, // or assigned_at if filtered by user? 
             id: item.id
         }));
-    }
-
-    // Member: Simplified Scope - Only see assigned project
-    if (user.role === 'member') {
-        
-        return await projectMemberRepository.findProjectsByUser(user.id);
     }
     return buildPaginationResponse([], limit, () => {});
   }

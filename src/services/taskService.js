@@ -101,28 +101,42 @@ class TaskService {
   // Full Update (Admin/Manager)
   async updateTask(user, id, updates, expectedVersion, correlationId) {
       const task = await taskRepository.findById(id);
-      const oldStatus = task.status;
       if (!task) throw new Error('Task not found');
 
+      // We explicitly check if project_id is provided in the update body and if it differs
+      if (updates.project_id && updates.project_id !== task.project_id) {
+          throw new Error('Access denied: Tasks cannot be moved between projects');
+      }
+
+      const oldStatus = task.status;
       const project = await projectRepository.findById(task.project_id);
       if (project.organization_id !== user.organization_id) throw new Error('Access denied');
       if (project.status === 'archived') throw new Error('Cannot update tasks in an archived project');
 
+      // Validate Status Transition (if status is being updated)
+      if (updates.status && updates.status !== oldStatus) {
+          await this._validateStatusTransition(oldStatus, updates.status, user, task.id, correlationId);
+      }
+
       return await runTransaction(async (client) => {
-          const updatedTask = await taskRepository.update(id, updates, expectedVersion, client);
+          // Remove project_id from updates just in case it was passed with the same value
+          const cleanUpdates = { ...updates };
+          delete cleanUpdates.project_id;
+
+          const updatedTask = await taskRepository.update(id, cleanUpdates, expectedVersion, client);
           
           if (!updatedTask && expectedVersion !== undefined) {
-              // Check if failure was due to version mismatch or just not found (already handled)
               throw new Error('Conflict: Task has been modified by another user');
           }
 
           if (updates.status) {
             await taskWorkflowRepository.create({
-            task_id: id,
-            from_status: oldStatus,
-            to_status: updates.status,
-            changed_by: user.id
-        }, client);
+              task_id: id,
+              project_id: task.project_id, // Denormalized for faster history queries
+              from_status: oldStatus,
+              to_status: updates.status,
+              changed_by: user.id
+            }, client);
           }
 
           // Audit Log
@@ -150,20 +164,10 @@ class TaskService {
     if (user.role === 'member' && task.assigned_to !== user.id) {
         throw new Error('Access denied: Members can only update their own tasks');
     }
-    const oldStatus = task.status;
-    if (oldStatus === newStatus) return task;
+     const oldStatus = task.status;
+     if (oldStatus === newStatus) return task;
 
-    // Validate Transitions
-    const validTransitions = {
-        'todo': ['in_progress'],
-        'in_progress': ['review', 'todo'],
-        'review': ['done', 'in_progress'],
-        'done': ['review', 'in_progress']
-    };
-
-    if (!validTransitions[oldStatus].includes(newStatus)) {
-        throw new Error(`Invalid status transition from ${oldStatus} to ${newStatus}`);
-    }
+     await this._validateStatusTransition(oldStatus, newStatus, user, id, correlationId);
 
     const result = await runTransaction(async (client) => {
         const updatedTask = await taskRepository.updateStatus(id, newStatus, expectedVersion, client);
@@ -175,6 +179,7 @@ class TaskService {
         // Record History
         await taskWorkflowRepository.create({
             task_id: id,
+            project_id: task.project_id,
             from_status: oldStatus,
             to_status: newStatus,
             changed_by: user.id
@@ -229,6 +234,22 @@ class TaskService {
             }
         }, client);
     });
+  }
+
+
+  async _validateStatusTransition(oldStatus, newStatus, user, taskId, correlationId) {
+      const validTransitions = {
+          'todo': ['in_progress'],
+          'in_progress': ['review', 'todo'],
+          'review': ['done', 'in_progress'],
+          'done': ['review']
+      };
+
+      if (!validTransitions[oldStatus] || !validTransitions[oldStatus].includes(newStatus)) {
+          const errorPrefix = `Invalid status transition from ${oldStatus} to ${newStatus}`;
+          const errorSuffix = correlationId ? ` (Trace ID: ${correlationId})` : '';
+          throw new Error(`${errorPrefix}${errorSuffix}`);
+      }
   }
 }
 

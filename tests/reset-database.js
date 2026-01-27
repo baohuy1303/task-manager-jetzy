@@ -4,6 +4,7 @@ async function resetDatabase() {
   console.log('🗑️  Resetting database...\n');
 
   const force = process.argv.includes('--force');
+  const fullWipe = process.argv.includes('--full');
 
   if (!force) {
     console.log('⚠️  WARNING: This will delete ALL data from the database!');
@@ -11,6 +12,26 @@ async function resetDatabase() {
     process.exit(0);
   }
 
+  if (fullWipe) {
+    console.log('🚮  Wiping Database Schema (Clean Slate)...\n');
+    try {
+      const tables = ['audit_logs', 'task_workflows', 'tasks', 'project_members', 'projects', 'users', 'organizations', 'pgmigrations'];
+      for (const table of tables) {
+        await query(`DROP TABLE IF EXISTS "${table}" CASCADE`);
+      }
+      const types = ['org_status', 'user_role', 'project_status', 'task_status', 'task_priority'];
+      for (const type of types) {
+        await query(`DROP TYPE IF EXISTS "${type}" CASCADE`);
+      }
+      console.log('✅ Database schema wiped successfully');
+      return;
+    } catch (error) {
+      console.error('❌ Error wiping database:', error.message);
+      process.exit(1);
+    }
+  }
+
+  console.log('🗑️  Resetting database data...\n');
   try {
     // Delete in correct order (respect FK constraints)
     console.log('Deleting data...');
@@ -44,4 +65,9 @@ async function resetDatabase() {
   }
 }
 
-resetDatabase();
+resetDatabase().then(() => {
+  if (process.argv.includes('--full')) {
+     console.log('💡 Note: Schema was wiped. You need to run migrations before seeding.');
+  }
+  process.exit(0);
+});

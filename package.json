@@ -8,10 +8,8 @@
     "migrate:create": "node-pg-migrate create",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
-    "seed": "node scripts/seedRealistic.js",
-    "test:http:setup": "node tests/reset-database.js --force && node tests/seed-database.js",
-    "test:http:seed": "node tests/seed-database.js",
-    "test:http:reset": "node tests/reset-database.js"
+    "db:rebuild": "node tests/reset-database.js --force --full && npm run migrate:up && node tests/seed-database.js",
+    "test:full": "node tests/run-all-tests.js"
   },
   "dependencies": {
     "@faker-js/faker": "^10.2.0",

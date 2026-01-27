@@ -18,7 +18,7 @@ class TaskRepository {
     return rows[0];
   }
 
-  async findAll({ organization_id, project_id, assigned_to, status, priority, due_before, due_after, is_deleted, limit = 50, cursor }, client) {
+  async findAll({ organization_id, project_id, assigned_to, status, priority, due_before, due_after, is_deleted, search, limit = 50, cursor }, client) {
     let text;
     let values;
     let paramIndex;
@@ -51,6 +51,11 @@ class TaskRepository {
         // This case occurs if somehow useDirectLookup was false but project_id exists (not possible here but for clarity)
         text += ` AND t.project_id = $${paramIndex++}`;
         values.push(project_id);
+    }
+
+    if (search) {
+        text += ` AND ${useDirectLookup ? '' : 't.'}title ILIKE $${paramIndex++}`;
+        values.push(`%${search}%`);
     }
 
     if (status) {

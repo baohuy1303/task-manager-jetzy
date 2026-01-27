@@ -215,9 +215,49 @@ async function runScenario2() {
   }
 
   // ===========================================================================
-  // TEST 5: Task Updates
+  // TEST 5: Task Workflow History
   // ===========================================================================
-  logSubsection('Test Group 5: Task Modification');
+  logSubsection('Test Group 5: Task Workflow History');
+
+  // Happy: Get task history
+  const taskHistoryResult = await apiCall('GET', `/task-workflows/tasks/${taskId}/history`, null, adminToken);
+  happyTests.total++;
+  if (taskHistoryResult.success && taskHistoryResult.data.data.length >= 3) {
+    logTest('Retrieve task workflow history', true, `Found ${taskHistoryResult.data.data.length} transitions`);
+    
+    // Verify denormalized project_id
+    if (taskHistoryResult.data.data[0].project_id) {
+      logTest('  → project_id denormalized', true);
+    }
+    happyTests.passed++;
+  } else {
+    logTest('Retrieve task workflow history', false);
+  }
+
+  // Happy: Organization-wide workflow history (Admin)
+  const orgHistoryResult = await apiCall('GET', '/task-workflows/history?limit=50', null, adminToken);
+  happyTests.total++;
+  if (orgHistoryResult.success && orgHistoryResult.data.data.length > 0) {
+    logTest('Query org-wide workflow history', true, `Found ${orgHistoryResult.data.data.length} entries`);
+    happyTests.passed++;
+  } else {
+    logTest('Query org-wide workflow history', false);
+  }
+
+  // Happy: Verify pagination in workflow history
+  const page1Result = await apiCall('GET', '/task-workflows/history?limit=2', null, adminToken);
+  happyTests.total++;
+  if (page1Result.success && page1Result.data.meta && page1Result.data.meta.has_more) {
+    logTest('Workflow history pagination', true, 'has_more flag present');
+    happyTests.passed++;
+  } else {
+    logTest('Workflow history pagination', false);
+  }
+
+  // ===========================================================================
+  // TEST 6: Task Updates
+  // ===========================================================================
+  logSubsection('Test Group 6: Task Modification');
 
   // Happy: Update task details
   const updateTaskResult = await apiCall('PATCH', `/tasks/${taskId}`, {
@@ -234,9 +274,9 @@ async function runScenario2() {
   }
 
   // ===========================================================================
-  // TEST 6: Task Deletion (Soft Delete)
+  // TEST 7: Task Deletion (Soft Delete)
   // ===========================================================================
-  logSubsection('Test Group 6: Task Deletion');
+  logSubsection('Test Group 7: Task Deletion');
 
   // Happy: Soft delete task
   const deleteTaskResult = await apiCall('DELETE', `/tasks/${taskId}`, null, adminToken);

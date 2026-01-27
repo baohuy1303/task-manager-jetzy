@@ -24,18 +24,16 @@ class NotificationService {
                 }
             }
 
-            console.log(`[Notification] Adding 'TASK_ASSIGNED' job for ${user.email}...`);
             await emailQueue.add({
                 type: 'TASK_ASSIGNED',
                 email: user.email,
-                organization_id: user.organization_id, // For auditing
-                request_id: correlationId, // For correlation
+                organization_id: user.organization_id,
+                request_id: correlationId,
                 taskTitle: taskTitle,
                 taskId: taskId,
                 performedByName: performedByName,
-                performedByEmail: performedByEmail // Send Name instead of ID
+                performedByEmail: performedByEmail
             });
-            console.log(`[Notification] Queued assignment email for ${user.email}`);
         } catch (error) {
             console.error('[Notification] Error queuing assignment email:', error);
             // Non-blocking: we don't want to fail the task creation if notification fails
@@ -48,7 +46,6 @@ class NotificationService {
             if (!project) return;
 
             // Fetch managers assigned to this project
-            // We use projectMemberRepository to check membership, filtering by role 'manager'
             const projectManagers = await projectMemberRepository.findMembersByProject(projectId, {
                 roles: ['manager']
             });
@@ -70,8 +67,8 @@ class NotificationService {
                 data: {
                     type: 'TASK_COMPLETED',
                     email: recipient.email,
-                    organization_id: project.organization_id, // For auditing
-                    request_id: correlationId, // For correlation
+                    organization_id: project.organization_id,
+                    request_id: correlationId,
                     taskTitle: taskTitle,
                     taskId: taskId,
                     performedByName: performedByName,
@@ -80,9 +77,7 @@ class NotificationService {
             }));
 
             // Bull addBulk is more efficient
-            console.log(`[Notification] Adding bulk 'TASK_COMPLETED' jobs for ${jobs.length} recipients...`);
             await emailQueue.addBulk(jobs);
-            console.log(`[Notification] Queued completion emails for ${jobs.length} managers`);
 
         } catch (error) {
             console.error('[Notification] Error queuing completion emails:', error);
@@ -90,9 +85,7 @@ class NotificationService {
     }
 
     async notifyDeactivation(deactivatedUser, unassignedTasks, performedById, correlationId) {
-        console.log(`[Notification] notifyDeactivation called for ${deactivatedUser?.email} (${deactivatedUser?.role})`);
         if (!deactivatedUser) {
-            console.log('[Notification] Aborting: No deactivatedUser provided.');
             return;
         }
 
@@ -101,10 +94,8 @@ class NotificationService {
 
             // --- CASE A: Manager or Admin Deactivated ---
             if (role === 'manager' || role === 'admin') {
-                console.log(`[Notification] Handling Manager/Admin deactivation logic.`);
                 // 1. Fetch All Admins
                 let admins = await userRepository.findAdminsByOrganization(deactivatedUser.organization_id);
-                console.log(`[Notification] Found ${admins.length} admins in org.`);
                 
                 // If the deactivated user is an admin, remove them from the notification list
                 if (role === 'admin') {
@@ -112,7 +103,6 @@ class NotificationService {
                 }
 
                 if (admins.length === 0) {
-                    console.log('[Notification] No other admins to notify.');
                     return;
                 }
 
@@ -120,20 +110,14 @@ class NotificationService {
                 const projects = await projectMemberRepository.findProjectsByUser(deactivatedUser.id);
                 const projectNames = projects ? projects.map(p => p.name) : [];
 
-                if (projectNames.length > 0) {
-                    console.log(`[Notification] Found ${projectNames.length} associated projects: ${projectNames.join(', ')}`);
-                } else {
-                    console.log('[Notification] No associated projects found.');
-                }
-
                 // 3. Queue Email for each Admin
                 const jobs = admins.map(admin => ({
                     data: {
                         type: 'USER_DEACTIVATED',
                         email: admin.email,
-                        organization_id: admin.organization_id, // For auditing
-                        request_id: correlationId, // For correlation
-                        managerName: admin.name, // "Manager Name" implies recipient name in email template
+                        organization_id: admin.organization_id,
+                        request_id: correlationId,
+                        managerName: admin.name, // Recipient Name
                         deactivatedUserName: deactivatedUser.name,
                         deactivatedUserRole: role,
                         associatedProjects: projectNames,
@@ -143,9 +127,7 @@ class NotificationService {
                 }));
 
                 if (jobs.length > 0) {
-                    console.log(`[Notification] Queuing ${jobs.length} admin alerts for ${role} deactivation...`);
                     await emailQueue.addBulk(jobs);
-                    console.log('[Notification] Jobs added to queue.');
                 }
                 return;
             } // --- CASE B: Member Deactivated (Existing Logic) ---
@@ -176,8 +158,8 @@ class NotificationService {
                             data: {
                                 type: 'USER_DEACTIVATED',
                                 email: manager.email,
-                                organization_id: deactivatedUser.organization_id, // For auditing
-                                request_id: correlationId, // For correlation
+                                organization_id: deactivatedUser.organization_id,
+                                request_id: correlationId,
                                 managerName: manager.name,
                                 deactivatedUserName: deactivatedUser.name,
                                 deactivatedUserRole: role,
@@ -190,7 +172,6 @@ class NotificationService {
                 }
 
                 if (jobs.length > 0) {
-                    console.log(`[Notification] Queuing ${jobs.length} manager alerts for member deactivation...`);
                     await emailQueue.addBulk(jobs);
                 }
             }

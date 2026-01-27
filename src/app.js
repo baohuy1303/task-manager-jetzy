@@ -52,6 +52,9 @@ apiRouter.use('/tasks', taskRoutes);
 const auditLogRoutes = require('./routes/auditLogRoutes');
 apiRouter.use('/audit-logs', auditLogRoutes);
 
+const taskWorkflowRoutes = require('./routes/taskWorkflowRoutes');
+apiRouter.use('/task-workflows', taskWorkflowRoutes);
+
 
 
 // Start Worker

@@ -8,27 +8,22 @@ const { runTransaction } = require('../../config/db');
 
 class UserService {
   async deactivateUser(adminUser, targetUserId, correlationId) {
-    // 1. Verify Permission (Admin only)
     if (adminUser.role !== 'admin') {
         throw new Error('Access denied: Only admins can deactivate users');
     }
 
-    // 2. Verify Target User exists and belongs to same Org
     const targetUser = await this.getUserById(targetUserId);
     if (targetUser.organization_id !== adminUser.organization_id) {
         throw new Error('Access denied: User is in different organization');
     }
 
-    // 3. Prevent self-deactivation (Security: Admins cannot lock themselves out)
+    // Prevent self-deactivation
     if (adminUser.id === targetUserId) {
         throw new Error('Access denied: Admins cannot deactivate themselves');
     }
 
-    // 4. Deactivate User & Unassign Tasks (Transactional)
     const result = await runTransaction(async (client) => {
         const deactivatedUser = await userRepository.deactivate(targetUserId, client);
-
-        // Changed Logic: Unassign tasks instead of reassigning
         const unassignedTasks = await taskRepository.unassignTasks(targetUserId, client);
         
         await auditLogRepository.create({
@@ -50,7 +45,7 @@ class UserService {
         };
     });
 
-    // 4. Notify (Post-Transaction)
+    // Queue notifications
     if (targetUser.role === 'member' && result.unassignedTasksCount === 0) {
         return { 
         user: result.user, 

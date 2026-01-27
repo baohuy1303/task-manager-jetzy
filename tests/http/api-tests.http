@@ -35,6 +35,7 @@ Content-Type: application/json
 
 ###
 @managerToken = {{loginManager1.response.body.data.token}}
+@managerId = {{loginManager1.response.body.data.user.id}}
 
 ### Login as Member (Org 1)
 # @name loginMember1
@@ -48,6 +49,7 @@ Content-Type: application/json
 
 ###
 @memberToken = {{loginMember1.response.body.data.token}}
+@memberId = {{loginMember1.response.body.data.user.id}}
 
 ### ===============================================================
 ### USERS - Query & Pagination
@@ -76,7 +78,7 @@ Authorization: Bearer {{token}}
 ###
 
 ### Filter: Active managers (combined filter)
-GET {{baseUrl}}/users?role=manager&is_active=true&limit=30
+GET {{baseUrl}}/users?role=manager&limit=30
 Authorization: Bearer {{token}}
 
 ###
@@ -126,10 +128,10 @@ Authorization: Bearer {{token}}
 ### TASKS - Query & Pagination
 ### ===============================================================
 
-### Get all tasks - Page 1
+### Get all tasks of user (member) - Page 1
 # @name tasksPage1
 GET {{baseUrl}}/tasks?limit=50
-Authorization: Bearer {{token}}
+Authorization: Bearer {{memberToken}}
 
 ###
 @tasksCursor1 = {{tasksPage1.response.body.meta.next_cursor}}
@@ -139,7 +141,7 @@ Authorization: Bearer {{token}}
 ### Tasks - Page 2
 # @name tasksPage2
 GET {{baseUrl}}/tasks?limit=50&cursor={{tasksCursor1}}
-Authorization: Bearer {{token}}
+Authorization: Bearer {{memberToken}}
 
 ###
 @tasksCursor2 = {{tasksPage2.response.body.meta.next_cursor}}
@@ -158,7 +160,7 @@ Authorization: Bearer {{token}}
 
 ### Filter: Tasks by assignee
 GET {{baseUrl}}/tasks?assigned_to={{assignedTo}}&limit=50
-Authorization: Bearer {{token}}
+Authorization: Bearer {{managerToken}}
 
 ###
 
@@ -172,6 +174,69 @@ Authorization: Bearer {{token}}
 GET {{baseUrl}}/tasks/{{taskId}}
 Authorization: Bearer {{token}}
 
+###
+
+### Update task status (with Correlation ID), replace status with whatever the next status would be
+PATCH {{baseUrl}}/tasks/{{taskId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+X-Correlation-ID: manual-test-id-123
+
+{
+  "status": "in_progress", 
+  "version": 1
+}
+
+### ===============================================================
+### TASK WORKFLOW HISTORY - Query Task History
+###===============================================================
+
+### Get specific task's workflow history
+GET {{baseUrl}}/task-workflows/tasks/{{taskId}}/history
+Authorization: Bearer {{token}}
+
+###
+
+### Get specific task's workflow history with pagination
+# @name taskHistoryPage1
+GET {{baseUrl}}/task-workflows/tasks/{{taskId}}/history?limit=1
+Authorization: Bearer {{token}}
+
+###
+@taskHistoryCursor = {{taskHistoryPage1.response.body.meta.next_cursor}}
+
+### Get next page of task history
+GET {{baseUrl}}/task-workflows/tasks/{{taskId}}/history?limit=5&cursor={{taskHistoryCursor}}
+Authorization: Bearer {{token}}
+
+###
+
+### Filter task history by changed_by
+GET {{baseUrl}}/task-workflows/tasks/{{taskId}}/history?changed_by={{adminId}}
+Authorization: Bearer {{token}}
+
+###
+
+### Organization-wide workflow history (Admin/Manager only)
+# @name orgWorkflowHistory
+GET {{baseUrl}}/task-workflows/history?limit=50
+Authorization: Bearer {{token}}
+
+###
+
+### Organization-wide history with pagination
+@orgHistoryCursor = {{orgWorkflowHistory.response.body.meta.next_cursor}}
+GET {{baseUrl}}/task-workflows/history?limit=10&cursor={{orgHistoryCursor}}
+Authorization: Bearer {{token}}
+
+###
+
+### Filter org-wide history by changed_by
+GET {{baseUrl}}/task-workflows/history?changed_by={{adminId}}&limit=20
+Authorization: Bearer {{token}}
+
+###
+
 ### ===============================================================
 ### AUDIT LOGS - Query & Pagination (Admin Only)
 ### ===============================================================
@@ -183,7 +248,7 @@ Authorization: Bearer {{token}}
 
 ###
 @auditCursor1 = {{auditPage1.response.body.meta.next_cursor}}
-@correlationId = {{auditPage1.response.body.data.0.metadata.request_id}}
+@correlationId = manual-test-id-123
 
 ### Audit Logs - Page 2
 # @name auditPage2
@@ -205,8 +270,14 @@ Authorization: Bearer {{token}}
 
 ###
 
-### Trace request by correlation_id
+### Trace request by correlation_id (Dynamic from first log)
 GET {{baseUrl}}/audit-logs?correlation_id={{correlationId}}
+Authorization: Bearer {{token}}
+
+###
+
+### Trace request by correlation_id (Hardcoded from manual tests)
+GET {{baseUrl}}/audit-logs?correlation_id=manual-test-id-123
 Authorization: Bearer {{token}}
 
 ###
@@ -243,10 +314,23 @@ Content-Type: application/json
 POST {{baseUrl}}/projects
 Authorization: Bearer {{managerToken}}
 Content-Type: application/json
+X-Correlation-ID: manual-test-id-123
 
 {
-  "name": "Manager Created Project",
-  "description": "Testing RBAC"
+  "name": "Manual Correlation Project",
+  "description": "Testing correlation ID flow"
+}
+
+###
+
+### Admin updates user
+PATCH {{baseUrl}}/users/{{memberId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+X-Correlation-ID: manual-test-id-123
+
+{
+  "name": "Updated Member Name"
 }
 
 ### ===============================================================

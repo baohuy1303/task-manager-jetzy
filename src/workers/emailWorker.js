@@ -14,13 +14,11 @@ const transporter = nodemailer.createTransport({
 // Mock email sender
 const sendEmail = async (to, subject, body) => {
     try {
-        console.log(`📧 [EMAIL SENDING] TO: ${to}\n SUBJECT: ${subject}\n -----------------------`);
         await transporter.sendMail({
             to,
             subject,
             html: body
         }).then(() => {
-            console.log(`📧 [EMAIL SENT] TO: ${to}\n SUBJECT: ${subject}\n -----------------------`);
         });
     } catch (error) {
         console.error(`Error sending email to ${to}:`, error);
@@ -162,7 +160,7 @@ const processEmailJobs = () => {
       try {
         const auditLogRepository = require('../repositories/auditLogRepository');
         await auditLogRepository.create({
-            organization_id: job.data.organization_id || null, // Best effort
+            organization_id: job.data.organization_id || null,
             entity_type: 'notification',
             entity_id: job.id.toString().includes(':') ? null : job.id, // Bull IDs can be complex
             action: 'notification_failure',
