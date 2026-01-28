@@ -114,7 +114,7 @@ Read [SCRIPT_TEST.md](tests/SCRIPT_TEST.md) and [MANUAL_API_TEST.md](tests/http/
 **Why**: Tie-breaking with `id` ensures stable cursor-based pagination.
 
 **Decision**: Partial indexes on filtered queries (`WHERE is_active = true`).  
-**Why**: Smaller index size (60-80% reduction) without sacrificing query speed.
+**Why**: Smaller index size without sacrificing query speed.
 
 **Decision**: Assignee and project indexing on tasks (`ON tasks (assigned_to, status, created_at DESC) ` & `ON tasks (project_id, status, created_at DESC) `).  
 **Why**: Frequently queried by members to look for task, and manager to look for tasks in their projects. Improved speed by 250% (~8ms vs ~200ms)
