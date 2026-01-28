@@ -101,7 +101,7 @@ Read [SCRIPT_TEST.md](tests/SCRIPT_TEST.md) and [MANUAL_API_TEST.md](tests/http/
 
 | Table | Key Decisions | Why |
 |-------|---------------|-----|
-| **Users** | Partial index `(org_id, role, created_at DESC, id) WHERE is_active = true` | 60% index size reduction, optimizes active user queries |
+| **Users** | Partial index `(org_id, role, created_at DESC, id) WHERE is_active = true` | Index size reduction, optimizes active user queries |
 | **Projects** | Partial index `WHERE status != 'archived'` | Skip dead records, enhances performance in most queries |
 | **Tasks** | `version` column + partial index `WHERE is_deleted = false` | Optimistic locking + soft delete support + faster queries |
 | **Task Workflows** | Denormalized `project_id` | Eliminates JOIN for org-wide audit queries (2x faster) |
@@ -115,6 +115,9 @@ Read [SCRIPT_TEST.md](tests/SCRIPT_TEST.md) and [MANUAL_API_TEST.md](tests/http/
 
 **Decision**: Partial indexes on filtered queries (`WHERE is_active = true`).  
 **Why**: Smaller index size (60-80% reduction) without sacrificing query speed.
+
+**Decision**: Assignee and project indexing on tasks (`ON tasks (assigned_to, status, created_at DESC) ` & `ON tasks (project_id, status, created_at DESC) `).  
+**Why**: Frequently queried by members to look for task, and manager to look for tasks in their projects. Improved speed by 250% (~8ms vs ~200ms)
 
 **Decision**: Expression indexes for JSONB fields.  
 **Why**: Makes flexible metadata queryable without schema migrations.
@@ -297,6 +300,10 @@ Stress tested with 1000 task retrieval request and response only went up to 10ms
 - **Pagination** cursor stability checks
 
 See `tests/run-all-tests.js` for all testing scenarios (5 scenarios that tests all endpoints/features)
+
+### Benchmark Results
+
+See `tests/benchmark_results.md` for all benchmark results (2 scripts that tests 2.75M tasks retrieval)
 
 ---
 
