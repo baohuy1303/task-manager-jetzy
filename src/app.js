@@ -4,11 +4,15 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const errorHandler = require('./middlewares/errorHandler');
 const correlationMiddleware = require('./middlewares/correlationMiddleware');
+const { apiLimiter } = require('./middlewares/rateLimiter');
 
 const app = express();
 
 // Correlation ID must be first (before logger)
 app.use(correlationMiddleware);
+
+// Apply Global Rate Limiter to API routes
+app.use('/api', apiLimiter);
 
 // Configure morgan to include correlation ID
 morgan.token('correlation-id', (req) => req.correlationId || 'none');

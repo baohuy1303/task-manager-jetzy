@@ -40,6 +40,7 @@ This system enforces strict business rules for multi-tenancy, role-based access 
 - **Optimistic locking**: Version-based concurrency control prevents lost updates
 - **Audit trail**: All write operations logged with correlation IDs for debugging
 - **Notifications**: Asynchronous email notifications for task assignments, completions, and user deactivations with retries on failure
+- **Rate limiting**: API rate limiting with configurable limits
 
 ---
 
