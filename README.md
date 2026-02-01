@@ -41,6 +41,14 @@ This system enforces strict business rules for multi-tenancy, role-based access 
 - **Audit trail**: All write operations logged with correlation IDs for debugging
 - **Notifications**: Asynchronous email notifications for task assignments, completions, and user deactivations with retries on failure
 - **Rate limiting**: API rate limiting with configurable limits
+- **Performance Optimization**:
+Real-World Task Retrieval Simulation (`tests/disk-sim.js`)<br/>
+**Condition:** 2,750,000 Tasks across 11 Organizations to simulate production scaling, with row padding to ensure data exceeds RAM cache. 
+
+  | Query Scenario | Index Scan | Seq Scan | Blocks Saved | Result |
+  | :--- | :--- | :--- | :--- | :--- |
+  | **Scenario 1: Project View** | 9.63ms | **202.85ms** | 84,891 | **Instant** |
+  | **Scenario 2: Org View** | 16.46ms | **196.05ms** | 84,839 | **Instant** |
 
 ---
 
