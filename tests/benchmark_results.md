@@ -9,8 +9,8 @@
 
 | Query Scenario | Index Scan | Seq Scan | Blocks Saved | Result |
 | :--- | :--- | :--- | :--- | :--- |
-| **Direct Filter** | 9.63ms | **202.85ms** | 84,891 | 🚀 **Instant** |
-| **Paranoid Join** | 16.46ms | **196.05ms** | 84,839 | 🚀 **Instant** |
+| **Scenario 1: Project View** | 9.63ms | **202.85ms** | 84,891 | **Instant** |
+| **Scenario 2: Org View** | 16.46ms | **196.05ms** | 84,839 | **Instant** |
 
 ---
 
@@ -19,8 +19,8 @@
 
 | Query Scenario | Index Scan | Seq Scan | Blocks Saved | Result |
 | :--- | :--- | :--- | :--- | :--- |
-| **Scenario 1: Project View** | 8.13ms | **204.86ms** | 120,084 | 🚀 **Instant** |
-| **Scenario 2: Org View** | 293.44ms| **261.71ms** | 0 | 🐢 **Slow** |
+| **Scenario 1: Project View** | 8.13ms | **204.86ms** | 120,084 | **Instant** |
+| **Scenario 2: Org View** | 293.44ms| **261.71ms** | 0 | **Slow** |
 
 ---
 
