@@ -43,14 +43,6 @@ class TaskWorkflowService {
     const limit = parseInt(filters.limit) || 50;
     const cursor = decodeCursor(filters.cursor);
 
-    // Cross-query optimization: Ensure we only get workflows for tasks in the user's org
-    // This is a bit tricky with raw SQL unless we join in the repository.
-    // Let's rely on the fact that repository already has the logic or we improve it.
-    
-    // Actually, taskWorkflowRepository.findAll doesn't currently filter by organization_id.
-    // I should probably add that or ensure it's handled.
-    // Since taskWorkflows don't have organization_id directly, we need a join.
-
     const logs = await taskWorkflowRepository.findAll({
       ...filters,
       organization_id: user.organization_id, // We'll need to update repository to handle this

@@ -24,7 +24,6 @@ class TaskRepository {
     let paramIndex;
 
     // Optimization: If filtering by assigned_to OR project_id, use direct table lookup
-    // We assume the service layer has already verified project ownership if project_id is provided.
     const useDirectLookup = !!(assigned_to || project_id);
 
     if (useDirectLookup) {

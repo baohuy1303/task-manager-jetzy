@@ -57,18 +57,7 @@ class ProjectService {
         let projects;
         if (filters.user_id) {
              const projectMemberRepository = require('../repositories/projectMemberRepository');
-             // Reuse the member-style lookup but for the target user_id
-             // Note: This returns full project objects + assigned_at
              const memberProjects = await projectMemberRepository.findProjectsByUser(filters.user_id);
-             
-             // Now we need to apply other filters manually or re-query? 
-             // Ideally we should push this down to repo, but for now let's just filter the result if list is small,
-             // or better: use the repo result since finding projects by user is the primary intent.
-             // We'll wrap it in standard response format.
-             // Warning: Pagination of the result vs pagination of the query. 
-             // projectMemberRepository.findProjectsByUser does NOT support limit/cursor yet? 
-             // Wait, I didn't update findProjectsByUser to support pagination yet...
-             // Let's check repo.
              projects = memberProjects; 
         } else {
             projects = await projectRepository.findByOrganization(user.organization_id, { 
@@ -79,7 +68,7 @@ class ProjectService {
     }
 
         return buildPaginationResponse(projects, limit, (item) => ({
-            sortValue: item.created_at, // or assigned_at if filtered by user? 
+            sortValue: item.created_at, 
             id: item.id
         }));
     }

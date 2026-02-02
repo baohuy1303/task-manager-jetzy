@@ -306,7 +306,6 @@ class UserService {
   }
 
   async getUsersByOrganization(user, filters = {}) {
-    // Note: 'user' is now the full user object, not just organization_id
     const organization_id = user.organization_id;
     const { decodeCursor, buildPaginationResponse } = require('../utils/pagination');
     const limit = parseInt(filters.limit) || 50;

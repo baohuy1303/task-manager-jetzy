@@ -28,7 +28,7 @@ class TaskController {
       const filters = { project_id, status, priority, assigned_to, due_before, due_after, limit, cursor };
       
       const response = await taskService.getTasks(req.user, filters);
-      res.json(response); // Service now returns formatted { success, meta, data }
+      res.json(response);
     } catch (error) {
       next(error);
     }
@@ -37,7 +37,7 @@ class TaskController {
   async update(req, res, next) {
     try {
       const { id } = req.params;
-      const { version, ...updates } = req.body; // Extract version
+      const { version, ...updates } = req.body;
       const task = await taskService.updateTask(req.user, id, updates, version, req.correlationId);
       res.json({ success: true, data: task });
     } catch (error) {
@@ -51,7 +51,7 @@ class TaskController {
   async updateStatus(req, res, next) {
     try {
       const { id } = req.params;
-      const { status, version } = req.body; // Extract version
+      const { status, version } = req.body;
       const task = await taskService.updateTaskStatus(req.user, id, status, version, req.correlationId);
       res.json({ success: true, data: task });
     } catch (error) {
