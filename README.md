@@ -291,14 +291,6 @@ CREATE INDEX idx_audit_correlation ON audit_logs ((metadata->>'request_id'));
 
 ---
 
-## Performance Characteristics
-
-### Query Performance
-All operations have an average response time of 2-5ms.
-Stress tested with 1000 task retrieval request and response only went up to 10ms.
-
----
-
 ## Testing Strategy
 
 ### Automated Test Coverage
@@ -310,7 +302,7 @@ Stress tested with 1000 task retrieval request and response only went up to 10ms
 
 See `tests/run-all-tests.js` for all testing scenarios (5 scenarios that tests all endpoints/features)
 
-### Benchmark Results
+### Benchmark Results (Performance)
 
 See `tests/benchmark_results.md` for all benchmark results (2 scripts that tests 2.75M tasks retrieval)
 
